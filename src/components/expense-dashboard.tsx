@@ -31,14 +31,6 @@ type LoginFieldErrors = {
   password?: string;
 };
 
-type LoginResponse = {
-  message?: string;
-  fieldErrors?: LoginFieldErrors;
-  user?: {
-    username: string;
-  };
-};
-
 type ItemEditorDraft = {
   title: string;
   unitCost: string;
@@ -89,6 +81,10 @@ const LOGIN_USERNAME_MIN_LENGTH = 3;
 const LOGIN_USERNAME_MAX_LENGTH = 32;
 const LOGIN_PASSWORD_MIN_LENGTH = 8;
 const LOGIN_PASSWORD_MAX_LENGTH = 128;
+const EXPENSE_DATA_STORAGE_KEY = "engagement_expense_data";
+const ADMIN_SESSION_STORAGE_KEY = "engagement_admin_session";
+const CLIENT_ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME?.trim() || "afghany";
+const CLIENT_ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD?.trim() || "fatimatuz2006";
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -237,6 +233,100 @@ function validateItemEditorDraft(draft: ItemEditorDraft): ItemEditorErrors {
   }
 
   return errors;
+}
+
+function sanitizeClientItem(item: Partial<ExpenseItem> | undefined, index: number): ExpenseItem {
+  const rawId = typeof item?.id === "string" ? item.id.trim() : "";
+  const rawTitle = typeof item?.title === "string" ? item.title.trim() : "";
+
+  return {
+    id: rawId.length > 0 ? rawId : `item-${index + 1}`,
+    title: rawTitle.length > 0 ? rawTitle : "Biaya Baru",
+    unitCost: updateNumericValue(String(item?.unitCost ?? 0), 0),
+    quantity: Math.max(0, updateNumericValue(String(item?.quantity ?? 0), 0)),
+    note: typeof item?.note === "string" ? item.note : "",
+    paid: item?.paid === true,
+  };
+}
+
+function sanitizeClientData(payload: Partial<ExpenseData> | undefined, fallback: ExpenseData): ExpenseData {
+  const sourceItems = Array.isArray(payload?.items) ? payload.items : fallback.items;
+
+  return {
+    eventName:
+      typeof payload?.eventName === "string" && payload.eventName.trim().length > 0
+        ? payload.eventName.trim()
+        : fallback.eventName,
+    referenceTotal: updateNumericValue(
+      String(payload?.referenceTotal ?? fallback.referenceTotal),
+      fallback.referenceTotal
+    ),
+    updatedAt:
+      typeof payload?.updatedAt === "string" && !Number.isNaN(Date.parse(payload.updatedAt))
+        ? payload.updatedAt
+        : fallback.updatedAt,
+    items: sourceItems.map((item, index) => sanitizeClientItem(item, index)),
+  };
+}
+
+function readPersistedExpenseData(initialData: ExpenseData): ExpenseData | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawData = window.localStorage.getItem(EXPENSE_DATA_STORAGE_KEY);
+  if (!rawData) {
+    return null;
+  }
+
+  const parsed = JSON.parse(rawData) as Partial<ExpenseData>;
+  return sanitizeClientData(parsed, initialData);
+}
+
+function persistExpenseData(data: ExpenseData) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(EXPENSE_DATA_STORAGE_KEY, JSON.stringify(data));
+}
+
+type ClientAdminSession = {
+  username: string;
+};
+
+function readPersistedAdminSession() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawData = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+  if (!rawData) {
+    return null;
+  }
+
+  const parsed = JSON.parse(rawData) as Partial<ClientAdminSession>;
+  if (typeof parsed.username !== "string" || parsed.username.trim().length === 0) {
+    return null;
+  }
+
+  return parsed.username.trim();
+}
+
+function persistAdminSession(username: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify({ username }));
+}
+
+function clearAdminSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
 }
 
 type DonutChartProps = {
@@ -400,6 +490,50 @@ export default function ExpenseDashboard({
   const [isPending, startTransition] = useTransition();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const itemEditorTitleRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const enqueueStateUpdate = (callback: () => void) => {
+      Promise.resolve().then(callback);
+    };
+
+    try {
+      const persistedData = readPersistedExpenseData(initialData);
+      if (persistedData) {
+        enqueueStateUpdate(() => {
+          setData(persistedData);
+        });
+      }
+    } catch {
+      enqueueStateUpdate(() => {
+        setFeedback({
+          type: "error",
+          text: "Data lokal tidak valid, memuat data awal aplikasi.",
+        });
+      });
+    }
+
+    try {
+      const persistedAdminUsername = readPersistedAdminSession();
+      if (persistedAdminUsername) {
+        enqueueStateUpdate(() => {
+          setIsAdmin(true);
+          setAdminUsername(persistedAdminUsername);
+          setUsername(persistedAdminUsername);
+        });
+      } else if (!initialIsAdmin) {
+        enqueueStateUpdate(() => {
+          setIsAdmin(false);
+        });
+      }
+    } catch {
+      clearAdminSession();
+      if (!initialIsAdmin) {
+        enqueueStateUpdate(() => {
+          setIsAdmin(false);
+        });
+      }
+    }
+  }, [initialData, initialIsAdmin]);
 
   const calculatedTotal = useMemo(() => {
     return data.items.reduce((sum, item) => sum + item.unitCost * item.quantity, 0);
@@ -630,37 +764,42 @@ export default function ExpenseDashboard({
   };
 
   const saveData = useCallback(() => {
+    if (!isAdmin) {
+      setFeedback({
+        type: "error",
+        text: "Akses admin diperlukan untuk menyimpan perubahan.",
+      });
+      return;
+    }
+
     setFeedback({ type: "info", text: "Menyimpan perubahan..." });
 
-    startTransition(async () => {
-      const response = await fetch("/api/expenses", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
+    startTransition(() => {
+      try {
+        const updatedData: ExpenseData = {
+          ...data,
+          updatedAt: new Date().toISOString(),
+          items: data.items.map((item) => ({ ...item })),
+        };
 
-      if (!response.ok) {
+        persistExpenseData(updatedData);
+        setData(updatedData);
+        closeItemEditor();
+        setLastDraft(null);
+        setFeedback({
+          type: "success",
+          text: "Perubahan berhasil disimpan di browser ini.",
+        });
+      } catch {
         setFeedback({
           type: "error",
-          text: "Gagal menyimpan. Pastikan login sebagai admin terlebih dahulu.",
+          text: "Gagal menyimpan ke penyimpanan lokal browser.",
         });
-        return;
       }
-
-      const updatedData = (await response.json()) as ExpenseData;
-      setData(updatedData);
-      closeItemEditor();
-      setLastDraft(null);
-      setFeedback({
-        type: "success",
-        text: "Perubahan berhasil disimpan.",
-      });
     });
-  }, [data, startTransition, closeItemEditor]);
+  }, [closeItemEditor, data, isAdmin, startTransition]);
 
-  const login = async (event: FormEvent<HTMLFormElement>) => {
+  const login = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const fieldErrors = validateLoginFields(username, password);
 
@@ -673,56 +812,42 @@ export default function ExpenseDashboard({
     setLoginErrors({});
     setFeedback({ type: "info", text: "Memverifikasi akun admin..." });
 
-    startTransition(async () => {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: username.trim(),
-          password: password.trim(),
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as LoginResponse | null;
+    startTransition(() => {
+      const normalizedUsername = username.trim();
+      const normalizedPassword = password.trim();
 
-      if (!response.ok) {
-        setLoginErrors(payload?.fieldErrors ?? {});
+      if (
+        normalizedUsername !== CLIENT_ADMIN_USERNAME ||
+        normalizedPassword !== CLIENT_ADMIN_PASSWORD
+      ) {
+        setLoginErrors({});
         setFeedback({
           type: "error",
-          text: payload?.message ?? "Username atau password tidak valid.",
+          text: "Username atau password tidak valid.",
         });
         return;
       }
 
-      const resolvedAdminUsername = payload?.user?.username ?? username.trim();
+      persistAdminSession(normalizedUsername);
       setIsAdmin(true);
-      setAdminUsername(resolvedAdminUsername);
-      setUsername(resolvedAdminUsername);
+      setAdminUsername(normalizedUsername);
+      setUsername(normalizedUsername);
       setPassword("");
       setLoginErrors({});
       closeItemEditor();
       setLastDraft(null);
       setFeedback({
         type: "success",
-        text: `Login admin berhasil sebagai ${resolvedAdminUsername}.`,
+        text: `Login admin berhasil sebagai ${normalizedUsername}.`,
       });
     });
   };
 
-  const logout = async () => {
+  const logout = () => {
     setFeedback({ type: "info", text: "Mengakhiri sesi admin..." });
 
-    startTransition(async () => {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        setFeedback({ type: "error", text: "Gagal logout. Coba lagi." });
-        return;
-      }
-
+    startTransition(() => {
+      clearAdminSession();
       setIsAdmin(false);
       setUsername("");
       setPassword("");

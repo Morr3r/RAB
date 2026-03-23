@@ -66,6 +66,23 @@ type ExpenseDashboardProps = {
   initialAdminUsername?: string | null;
 };
 
+type ExpensesApiResponse = {
+  data?: Partial<ExpenseData>;
+  error?: string;
+};
+
+type AuthSessionApiResponse = {
+  isAdmin?: boolean;
+  username?: string | null;
+  error?: string;
+};
+
+type AuthLoginApiResponse = {
+  username?: string;
+  fieldErrors?: LoginFieldErrors;
+  error?: string;
+};
+
 const CHART_COLORS = [
   "#ff4d6d",
   "#ff6f91",
@@ -81,10 +98,7 @@ const LOGIN_USERNAME_MIN_LENGTH = 3;
 const LOGIN_USERNAME_MAX_LENGTH = 32;
 const LOGIN_PASSWORD_MIN_LENGTH = 8;
 const LOGIN_PASSWORD_MAX_LENGTH = 128;
-const EXPENSE_DATA_STORAGE_KEY = "engagement_expense_data";
-const ADMIN_SESSION_STORAGE_KEY = "engagement_admin_session";
-const CLIENT_ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME?.trim() || "afghany";
-const CLIENT_ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD?.trim() || "fatimatuz2006";
+const EXPENSE_SYNC_INTERVAL_MS = 10000;
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -269,64 +283,33 @@ function sanitizeClientData(payload: Partial<ExpenseData> | undefined, fallback:
   };
 }
 
-function readPersistedExpenseData(initialData: ExpenseData): ExpenseData | null {
-  if (typeof window === "undefined") {
+async function parseJsonResponse<T>(response: Response) {
+  try {
+    return (await response.json()) as T;
+  } catch {
     return null;
   }
-
-  const rawData = window.localStorage.getItem(EXPENSE_DATA_STORAGE_KEY);
-  if (!rawData) {
-    return null;
-  }
-
-  const parsed = JSON.parse(rawData) as Partial<ExpenseData>;
-  return sanitizeClientData(parsed, initialData);
 }
 
-function persistExpenseData(data: ExpenseData) {
-  if (typeof window === "undefined") {
-    return;
+function resolveApiErrorMessage(
+  payload: {
+    error?: string;
+  } | null,
+  fallback: string
+) {
+  if (typeof payload?.error === "string" && payload.error.trim().length > 0) {
+    return payload.error.trim();
   }
 
-  window.localStorage.setItem(EXPENSE_DATA_STORAGE_KEY, JSON.stringify(data));
+  return fallback;
 }
 
-type ClientAdminSession = {
-  username: string;
-};
-
-function readPersistedAdminSession() {
-  if (typeof window === "undefined") {
-    return null;
+function resolveRuntimeErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
   }
 
-  const rawData = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
-  if (!rawData) {
-    return null;
-  }
-
-  const parsed = JSON.parse(rawData) as Partial<ClientAdminSession>;
-  if (typeof parsed.username !== "string" || parsed.username.trim().length === 0) {
-    return null;
-  }
-
-  return parsed.username.trim();
-}
-
-function persistAdminSession(username: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify({ username }));
-}
-
-function clearAdminSession() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+  return fallback;
 }
 
 type DonutChartProps = {
@@ -492,48 +475,58 @@ export default function ExpenseDashboard({
   const itemEditorTitleRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const enqueueStateUpdate = (callback: () => void) => {
-      Promise.resolve().then(callback);
+    let isCancelled = false;
+
+    const syncOnMount = async () => {
+      try {
+        const [expenseResponse, sessionResponse] = await Promise.all([
+          fetch("/api/expenses", { method: "GET", cache: "no-store" }),
+          fetch("/api/auth/session", { method: "GET", cache: "no-store" }),
+        ]);
+
+        const expensePayload = await parseJsonResponse<ExpensesApiResponse>(expenseResponse);
+        const sessionPayload = await parseJsonResponse<AuthSessionApiResponse>(sessionResponse);
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (expenseResponse.ok && expensePayload) {
+          setData((current) => sanitizeClientData(expensePayload.data, current));
+        }
+
+        if (sessionResponse.ok && sessionPayload) {
+          const nextIsAdmin = sessionPayload.isAdmin === true;
+          const nextAdminUsername =
+            nextIsAdmin && typeof sessionPayload.username === "string"
+              ? sessionPayload.username.trim()
+              : "";
+
+          setIsAdmin(nextIsAdmin);
+          setAdminUsername(nextAdminUsername);
+          if (nextIsAdmin) {
+            setUsername(nextAdminUsername);
+          }
+        } else if (!initialIsAdmin) {
+          setIsAdmin(false);
+          setAdminUsername("");
+        }
+      } catch {
+        if (!isCancelled) {
+          setFeedback({
+            type: "error",
+            text: "Gagal sinkronisasi awal dengan server, menampilkan data terakhir yang tersedia.",
+          });
+        }
+      }
     };
 
-    try {
-      const persistedData = readPersistedExpenseData(initialData);
-      if (persistedData) {
-        enqueueStateUpdate(() => {
-          setData(persistedData);
-        });
-      }
-    } catch {
-      enqueueStateUpdate(() => {
-        setFeedback({
-          type: "error",
-          text: "Data lokal tidak valid, memuat data awal aplikasi.",
-        });
-      });
-    }
+    void syncOnMount();
 
-    try {
-      const persistedAdminUsername = readPersistedAdminSession();
-      if (persistedAdminUsername) {
-        enqueueStateUpdate(() => {
-          setIsAdmin(true);
-          setAdminUsername(persistedAdminUsername);
-          setUsername(persistedAdminUsername);
-        });
-      } else if (!initialIsAdmin) {
-        enqueueStateUpdate(() => {
-          setIsAdmin(false);
-        });
-      }
-    } catch {
-      clearAdminSession();
-      if (!initialIsAdmin) {
-        enqueueStateUpdate(() => {
-          setIsAdmin(false);
-        });
-      }
-    }
-  }, [initialData, initialIsAdmin]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [initialIsAdmin]);
 
   const calculatedTotal = useMemo(() => {
     return data.items.reduce((sum, item) => sum + item.unitCost * item.quantity, 0);
@@ -772,30 +765,46 @@ export default function ExpenseDashboard({
       return;
     }
 
-    setFeedback({ type: "info", text: "Menyimpan perubahan..." });
+    setFeedback({ type: "info", text: "Menyimpan perubahan ke server..." });
 
     startTransition(() => {
-      try {
-        const updatedData: ExpenseData = {
+      void (async () => {
+        const outgoingData: ExpenseData = {
           ...data,
-          updatedAt: new Date().toISOString(),
           items: data.items.map((item) => ({ ...item })),
         };
 
-        persistExpenseData(updatedData);
-        setData(updatedData);
-        closeItemEditor();
-        setLastDraft(null);
-        setFeedback({
-          type: "success",
-          text: "Perubahan berhasil disimpan di browser ini.",
-        });
-      } catch {
-        setFeedback({
-          type: "error",
-          text: "Gagal menyimpan ke penyimpanan lokal browser.",
-        });
-      }
+        try {
+          const response = await fetch("/api/expenses", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(outgoingData),
+          });
+
+          const payload = await parseJsonResponse<ExpensesApiResponse>(response);
+          if (!response.ok) {
+            throw new Error(
+              resolveApiErrorMessage(payload, "Gagal menyimpan data. Silakan login ulang.")
+            );
+          }
+
+          const updatedData = sanitizeClientData(payload?.data, outgoingData);
+          setData(updatedData);
+          closeItemEditor();
+          setLastDraft(null);
+          setFeedback({
+            type: "success",
+            text: "Perubahan berhasil disimpan dan tersinkron ke semua device.",
+          });
+        } catch (error) {
+          setFeedback({
+            type: "error",
+            text: resolveRuntimeErrorMessage(error, "Gagal menyimpan data ke server."),
+          });
+        }
+      })();
     });
   }, [closeItemEditor, data, isAdmin, startTransition]);
 
@@ -813,33 +822,53 @@ export default function ExpenseDashboard({
     setFeedback({ type: "info", text: "Memverifikasi akun admin..." });
 
     startTransition(() => {
-      const normalizedUsername = username.trim();
-      const normalizedPassword = password.trim();
+      void (async () => {
+        const normalizedUsername = username.trim();
+        const normalizedPassword = password.trim();
 
-      if (
-        normalizedUsername !== CLIENT_ADMIN_USERNAME ||
-        normalizedPassword !== CLIENT_ADMIN_PASSWORD
-      ) {
-        setLoginErrors({});
-        setFeedback({
-          type: "error",
-          text: "Username atau password tidak valid.",
-        });
-        return;
-      }
+        try {
+          const response = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              username: normalizedUsername,
+              password: normalizedPassword,
+            }),
+          });
 
-      persistAdminSession(normalizedUsername);
-      setIsAdmin(true);
-      setAdminUsername(normalizedUsername);
-      setUsername(normalizedUsername);
-      setPassword("");
-      setLoginErrors({});
-      closeItemEditor();
-      setLastDraft(null);
-      setFeedback({
-        type: "success",
-        text: `Login admin berhasil sebagai ${normalizedUsername}.`,
-      });
+          const payload = await parseJsonResponse<AuthLoginApiResponse>(response);
+          if (!response.ok) {
+            if (payload?.fieldErrors) {
+              setLoginErrors(payload.fieldErrors);
+            }
+            throw new Error(resolveApiErrorMessage(payload, "Username atau password tidak valid."));
+          }
+
+          const loggedInUsername =
+            typeof payload?.username === "string" && payload.username.trim().length > 0
+              ? payload.username.trim()
+              : normalizedUsername;
+
+          setIsAdmin(true);
+          setAdminUsername(loggedInUsername);
+          setUsername(loggedInUsername);
+          setPassword("");
+          setLoginErrors({});
+          closeItemEditor();
+          setLastDraft(null);
+          setFeedback({
+            type: "success",
+            text: `Login admin berhasil sebagai ${loggedInUsername}.`,
+          });
+        } catch (error) {
+          setFeedback({
+            type: "error",
+            text: resolveRuntimeErrorMessage(error, "Gagal login admin."),
+          });
+        }
+      })();
     });
   };
 
@@ -847,17 +876,75 @@ export default function ExpenseDashboard({
     setFeedback({ type: "info", text: "Mengakhiri sesi admin..." });
 
     startTransition(() => {
-      clearAdminSession();
-      setIsAdmin(false);
-      setUsername("");
-      setPassword("");
-      setAdminUsername("");
-      setLoginErrors({});
-      closeItemEditor();
-      setLastDraft(null);
-      setFeedback({ type: "success", text: "Sesi admin ditutup." });
+      void (async () => {
+        try {
+          const response = await fetch("/api/auth/logout", {
+            method: "POST",
+          });
+
+          const payload = await parseJsonResponse<{ error?: string }>(response);
+          if (!response.ok) {
+            throw new Error(resolveApiErrorMessage(payload, "Gagal logout admin."));
+          }
+
+          setIsAdmin(false);
+          setUsername("");
+          setPassword("");
+          setAdminUsername("");
+          setLoginErrors({});
+          closeItemEditor();
+          setLastDraft(null);
+          setFeedback({ type: "success", text: "Sesi admin ditutup." });
+        } catch (error) {
+          setFeedback({
+            type: "error",
+            text: resolveRuntimeErrorMessage(error, "Gagal menutup sesi admin."),
+          });
+        }
+      })();
     });
   };
+
+  useEffect(() => {
+    if (lastDraft) {
+      return;
+    }
+
+    const syncTimer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const response = await fetch("/api/expenses", {
+            method: "GET",
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            return;
+          }
+
+          const payload = await parseJsonResponse<ExpensesApiResponse>(response);
+          if (!payload) {
+            return;
+          }
+
+          setData((current) => {
+            const syncedData = sanitizeClientData(payload.data, current);
+            if (syncedData.updatedAt === current.updatedAt) {
+              return current;
+            }
+
+            return syncedData;
+          });
+        } catch {
+          // ignore temporary sync errors and try again in next interval
+        }
+      })();
+    }, EXPENSE_SYNC_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(syncTimer);
+    };
+  }, [lastDraft]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

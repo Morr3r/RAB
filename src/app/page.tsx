@@ -1,15 +1,21 @@
+import { cookies } from "next/headers";
 import ExpenseDashboard from "@/components/expense-dashboard";
-import type { ExpenseData } from "@/lib/expenses";
-import initialDataJson from "../../data/expenses.json";
+import { ADMIN_COOKIE_NAME, getAdminUsername, isValidAdminToken } from "@/lib/auth";
+import { readExpenseData } from "@/lib/expenses";
 
-const initialData = initialDataJson as ExpenseData;
+export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
+  const data = await readExpenseData();
+  const cookieStore = await cookies();
+  const adminToken = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
+  const isAdmin = isValidAdminToken(adminToken);
+
   return (
     <ExpenseDashboard
-      initialData={initialData}
-      initialIsAdmin={false}
-      initialAdminUsername={null}
+      initialData={data}
+      initialIsAdmin={isAdmin}
+      initialAdminUsername={isAdmin ? getAdminUsername() : null}
     />
   );
 }

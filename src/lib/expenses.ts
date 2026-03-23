@@ -1,5 +1,5 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import type { Pool } from "pg";
+import { getDbPool } from "@/lib/db";
 
 export type ExpenseItem = {
   id: string;
@@ -17,7 +17,16 @@ export type ExpenseData = {
   items: ExpenseItem[];
 };
 
-const DATA_FILE_PATH = path.join(process.cwd(), "data", "expenses.json");
+type ExpenseRow = {
+  event_name: string;
+  reference_total: number;
+  updated_at: Date | string;
+  items: unknown;
+};
+
+type SanitizableExpensePayload = Omit<Partial<ExpenseData>, "items"> & {
+  items?: Partial<ExpenseItem>[];
+};
 
 const defaultData: ExpenseData = {
   eventName: "Rincian Biaya Lamaran Af&Zah",
@@ -83,6 +92,8 @@ const defaultData: ExpenseData = {
   ],
 };
 
+let schemaEnsured = false;
+
 function toPositiveInteger(value: unknown, fallback = 0) {
   const parsed = Number(value);
 
@@ -110,9 +121,29 @@ function sanitizeItem(item: Partial<ExpenseItem> | undefined, index: number): Ex
   };
 }
 
-function sanitizeExpenseData(payload: Partial<ExpenseData> | undefined): ExpenseData {
+function parseDatabaseItems(rawItems: unknown): Partial<ExpenseItem>[] | undefined {
+  if (Array.isArray(rawItems)) {
+    return rawItems as Partial<ExpenseItem>[];
+  }
+
+  if (typeof rawItems === "string") {
+    try {
+      const parsed = JSON.parse(rawItems) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed as Partial<ExpenseItem>[];
+      }
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
+
+function sanitizeExpenseData(payload: SanitizableExpensePayload | undefined): ExpenseData {
   const normalizedItems =
-    payload?.items?.map((item, index) => sanitizeItem(item, index)) ?? defaultData.items;
+    payload?.items?.map((item, index) => sanitizeItem(item, index)) ??
+    defaultData.items.map((item) => ({ ...item }));
 
   return {
     eventName:
@@ -128,21 +159,103 @@ function sanitizeExpenseData(payload: Partial<ExpenseData> | undefined): Expense
   };
 }
 
-export async function readExpenseData() {
-  try {
-    const fileContent = await fs.readFile(DATA_FILE_PATH, "utf-8");
-    const parsed = JSON.parse(fileContent) as Partial<ExpenseData>;
-    return sanitizeExpenseData(parsed);
-  } catch {
-    await writeExpenseData(defaultData);
-    return defaultData;
+function mapRowToExpenseData(row: ExpenseRow) {
+  const updatedAt =
+    row.updated_at instanceof Date
+      ? row.updated_at.toISOString()
+      : typeof row.updated_at === "string"
+        ? row.updated_at
+        : new Date().toISOString();
+
+  return sanitizeExpenseData({
+    eventName: row.event_name,
+    referenceTotal: row.reference_total,
+    updatedAt,
+    items: parseDatabaseItems(row.items),
+  });
+}
+
+async function ensureExpenseSchema(pool: Pool) {
+  if (schemaEnsured) {
+    return;
   }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS expense_data (
+      id SMALLINT PRIMARY KEY CHECK (id = 1),
+      event_name TEXT NOT NULL,
+      reference_total INTEGER NOT NULL CHECK (reference_total >= 0),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      items JSONB NOT NULL DEFAULT '[]'::jsonb
+    );
+  `);
+
+  schemaEnsured = true;
+}
+
+async function upsertExpenseData(pool: Pool, data: ExpenseData) {
+  await pool.query(
+    `
+      INSERT INTO expense_data (id, event_name, reference_total, updated_at, items)
+      VALUES (1, $1, $2, $3, $4::jsonb)
+      ON CONFLICT (id) DO UPDATE
+      SET event_name = EXCLUDED.event_name,
+          reference_total = EXCLUDED.reference_total,
+          updated_at = EXCLUDED.updated_at,
+          items = EXCLUDED.items
+    `,
+    [data.eventName, data.referenceTotal, data.updatedAt, JSON.stringify(data.items)]
+  );
+}
+
+async function getCurrentExpenseData(pool: Pool) {
+  const result = await pool.query<ExpenseRow>(
+    `
+      SELECT event_name, reference_total, updated_at, items
+      FROM expense_data
+      WHERE id = 1
+      LIMIT 1
+    `
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return mapRowToExpenseData(result.rows[0]);
+}
+
+export async function readExpenseData() {
+  const pool = getDbPool();
+  await ensureExpenseSchema(pool);
+
+  const existingData = await getCurrentExpenseData(pool);
+  if (existingData) {
+    return existingData;
+  }
+
+  const seededData = sanitizeExpenseData({
+    ...defaultData,
+    items: defaultData.items.map((item) => ({ ...item })),
+    updatedAt: new Date().toISOString(),
+  });
+
+  await upsertExpenseData(pool, seededData);
+  return seededData;
 }
 
 export async function writeExpenseData(payload: Partial<ExpenseData>) {
-  const normalizedData = sanitizeExpenseData(payload);
-  normalizedData.updatedAt = new Date().toISOString();
-  await fs.mkdir(path.dirname(DATA_FILE_PATH), { recursive: true });
-  await fs.writeFile(DATA_FILE_PATH, `${JSON.stringify(normalizedData, null, 2)}\n`, "utf-8");
-  return normalizedData;
+  const pool = getDbPool();
+  await ensureExpenseSchema(pool);
+
+  const currentData = (await getCurrentExpenseData(pool)) ?? defaultData;
+  const nextData = sanitizeExpenseData({
+    eventName: payload.eventName ?? currentData.eventName,
+    referenceTotal: payload.referenceTotal ?? currentData.referenceTotal,
+    items: payload.items ?? currentData.items,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await upsertExpenseData(pool, nextData);
+  return nextData;
 }

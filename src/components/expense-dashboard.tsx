@@ -767,39 +767,61 @@ export default function ExpenseDashboard({
       return;
     }
 
-    const syncTimer = window.setInterval(() => {
-      void (async () => {
-        try {
-          const response = await fetch("/api/expenses", {
-            method: "GET",
-            cache: "no-store",
-          });
+    let isEffectActive = true;
+    let isSyncing = false;
 
-          if (!response.ok) {
-            return;
-          }
+    const syncFromServer = async () => {
+      if (!isEffectActive || isSyncing || document.hidden) {
+        return;
+      }
 
-          const payload = await parseJsonResponse<ExpensesApiResponse>(response);
-          if (!payload) {
-            return;
-          }
+      isSyncing = true;
+      try {
+        const response = await fetch("/api/expenses", {
+          method: "GET",
+          cache: "no-store",
+        });
 
-          setData((current) => {
-            const syncedData = sanitizeClientData(payload.data, current);
-            if (syncedData.updatedAt === current.updatedAt) {
-              return current;
-            }
-
-            return syncedData;
-          });
-        } catch {
-          // ignore temporary sync errors and try again in next interval
+        if (!response.ok || !isEffectActive) {
+          return;
         }
-      })();
+
+        const payload = await parseJsonResponse<ExpensesApiResponse>(response);
+        if (!payload || !isEffectActive) {
+          return;
+        }
+
+        setData((current) => {
+          const syncedData = sanitizeClientData(payload.data, current);
+          if (syncedData.updatedAt === current.updatedAt) {
+            return current;
+          }
+
+          return syncedData;
+        });
+      } catch {
+        // ignore temporary sync errors and try again in next interval
+      } finally {
+        isSyncing = false;
+      }
+    };
+
+    const syncTimer = window.setInterval(() => {
+      void syncFromServer();
     }, EXPENSE_SYNC_INTERVAL_MS);
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void syncFromServer();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      isEffectActive = false;
       window.clearInterval(syncTimer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [lastDraft]);
 

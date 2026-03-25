@@ -143,7 +143,8 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
     }
 
     const stageTimer = window.setTimeout(() => {
-      setStage("ready");
+      // First visit: proceed directly to auth after splash, no extra click required.
+      setStage("auth");
     }, SPLASH_DURATION_MS);
 
     return () => {

@@ -48,7 +48,7 @@ body {
     radial-gradient(circle at 88% 16%, rgba(123, 97, 255, 0.26), transparent 30%),
     radial-gradient(circle at 70% 95%, rgba(0, 245, 212, 0.1), transparent 36%),
     linear-gradient(180deg, rgba(5, 4, 10, 0.8), rgba(12, 8, 21, 0.8) 54%, rgba(23, 10, 30, 0.8)),
-    url("/GendungSate.jpg") center / cover fixed no-repeat;
+    url("/GendungSate.jpg") center / cover no-repeat;
 }
 
 a {
@@ -2533,6 +2533,18 @@ select.input option {
 }
 
 @media (max-width: 1080px) {
+  .app-sidebar,
+  .music-player-shell,
+  .admin-profile-shortcut,
+  .admin-profile-dropdown,
+  .hero-card,
+  .panel,
+  .romantic-loader-card,
+  .admin-login-modal,
+  .admin-corner-card {
+    backdrop-filter: none;
+  }
+
   .app-layout {
     padding: 0.58rem;
   }

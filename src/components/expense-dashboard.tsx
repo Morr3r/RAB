@@ -8,7 +8,6 @@ import {
   useState,
   useTransition,
 } from "react";
-import Link from "next/link";
 import type { ExpenseData, ExpenseItem } from "@/lib/expenses";
 
 type FeedbackType = "success" | "error" | "info";
@@ -868,12 +867,6 @@ export default function ExpenseDashboard({
             </p>
             <div className="hero-chip-wrap">
               <p className="meta-chip">Terakhir diperbarui: {formatDate(data.updatedAt)}</p>
-              <p className="meta-chip">
-                {isAdmin ? "Mode Admin Aktif" : "Akses edit via profil kanan atas"}
-              </p>
-              <Link href="/history" className="meta-chip history-shortcut">
-                Lihat History Perubahan
-              </Link>
             </div>
             <div className="hero-metrics">
               <div className="metric-tile">

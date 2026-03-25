@@ -54,24 +54,410 @@ a {
   color: inherit;
 }
 
+.romantic-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 24% 18%, rgba(255, 92, 146, 0.36), transparent 34%),
+    radial-gradient(circle at 76% 16%, rgba(123, 97, 255, 0.34), transparent 31%),
+    radial-gradient(circle at 50% 90%, rgba(0, 245, 212, 0.12), transparent 40%),
+    linear-gradient(180deg, #0a0612, #13091f 62%, #1e0921);
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 520ms ease, transform 520ms ease;
+}
+
+.romantic-loader.is-exiting {
+  opacity: 0;
+  transform: scale(1.03);
+}
+
+.romantic-loader-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 42%, transparent 40%, rgba(4, 2, 9, 0.7) 100%);
+}
+
+.romantic-loader-aura {
+  position: absolute;
+  width: 64vw;
+  height: 64vw;
+  max-width: 620px;
+  max-height: 620px;
+  border-radius: 999px;
+  filter: blur(64px);
+  pointer-events: none;
+  animation: romantic-aura-shift 7.6s ease-in-out infinite;
+}
+
+.romantic-loader-aura-left {
+  left: -12vw;
+  top: -24vh;
+  background: radial-gradient(circle, rgba(255, 90, 146, 0.48), rgba(255, 90, 146, 0));
+}
+
+.romantic-loader-aura-right {
+  right: -15vw;
+  bottom: -26vh;
+  animation-delay: -3.1s;
+  background: radial-gradient(circle, rgba(122, 97, 255, 0.46), rgba(122, 97, 255, 0));
+}
+
+.romantic-loader-hearts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.romantic-loader-heart {
+  --heart-left: 50%;
+  --heart-size: 12px;
+  --heart-delay: 0s;
+  --heart-duration: 7s;
+  position: absolute;
+  left: var(--heart-left);
+  bottom: -10%;
+  width: var(--heart-size);
+  height: var(--heart-size);
+  border-radius: 2px;
+  background: linear-gradient(135deg, rgba(255, 137, 178, 0.95), rgba(255, 95, 160, 0.9));
+  transform: rotate(45deg);
+  opacity: 0;
+  animation: romantic-heart-rise var(--heart-duration) ease-in infinite;
+  animation-delay: var(--heart-delay);
+}
+
+.romantic-loader-heart::before,
+.romantic-loader-heart::after {
+  content: "";
+  position: absolute;
+  width: var(--heart-size);
+  height: var(--heart-size);
+  border-radius: 999px;
+  background: inherit;
+}
+
+.romantic-loader-heart::before {
+  left: calc(-1 * var(--heart-size) / 2);
+}
+
+.romantic-loader-heart::after {
+  top: calc(-1 * var(--heart-size) / 2);
+}
+
+.romantic-loader-card {
+  --romantic-loader-duration: 3380ms;
+  width: min(560px, calc(100vw - 1.8rem));
+  border-radius: 26px;
+  border: 1px solid rgba(255, 151, 192, 0.32);
+  padding: clamp(1.2rem, 3vw, 1.8rem);
+  text-align: center;
+  background:
+    linear-gradient(152deg, rgba(255, 72, 135, 0.2), rgba(123, 97, 255, 0.18)),
+    rgba(13, 10, 24, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 40px 80px -48px rgba(255, 70, 130, 0.68);
+  display: grid;
+  gap: 0.68rem;
+  position: relative;
+  z-index: 1;
+}
+
+.romantic-loader-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 225, 239, 0.88);
+  font-weight: 700;
+}
+
+.romantic-loader-title {
+  margin: 0;
+  font-family: var(--font-romantic), "Times New Roman", serif;
+  font-size: clamp(2.7rem, 9vw, 5.2rem);
+  line-height: 0.92;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: #fff4fa;
+  text-shadow: 0 10px 18px rgba(255, 81, 142, 0.34);
+}
+
+.romantic-loader-title span {
+  margin: 0 0.14em;
+  font-size: 0.8em;
+  color: #ffb8d5;
+}
+
+.romantic-loader-copy {
+  margin: 0.18rem 0 0;
+  color: #e3d5f9;
+  font-size: clamp(0.84rem, 1.8vw, 1.02rem);
+}
+
+.romantic-loader-rings {
+  margin: 0.4rem auto 0.24rem;
+  width: 116px;
+  height: 48px;
+  position: relative;
+}
+
+.romantic-loader-ring {
+  position: absolute;
+  top: 7px;
+  width: 36px;
+  height: 36px;
+  border: 2px solid rgba(255, 214, 232, 0.86);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(255, 98, 160, 0.16), inset 0 0 10px rgba(255, 164, 202, 0.32);
+}
+
+.romantic-loader-ring-left {
+  left: 24px;
+  animation: romantic-ring-left 4.6s ease-in-out infinite;
+}
+
+.romantic-loader-ring-right {
+  right: 24px;
+  border-color: rgba(208, 196, 255, 0.86);
+  box-shadow: 0 0 0 2px rgba(123, 97, 255, 0.16), inset 0 0 10px rgba(177, 160, 255, 0.32);
+  animation: romantic-ring-right 4.6s ease-in-out infinite;
+}
+
+.romantic-loader-progress {
+  width: min(280px, 80%);
+  height: 9px;
+  border-radius: 999px;
+  margin: 0.2rem auto 0;
+  border: 1px solid rgba(255, 157, 194, 0.38);
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.romantic-loader-progress-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255, 110, 172, 0.92), rgba(123, 97, 255, 0.94));
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: romantic-loader-progress var(--romantic-loader-duration) cubic-bezier(0.25, 0.92, 0.33, 1)
+    forwards;
+}
+
+.romantic-loader-ready {
+  margin-top: 0.2rem;
+  display: grid;
+  gap: 0.62rem;
+  justify-items: center;
+}
+
+.romantic-loader-start-button {
+  min-width: min(280px, 90%);
+  padding: 0.68rem 1rem;
+  font-size: 0.95rem;
+  box-shadow: 0 20px 36px -24px rgba(255, 72, 134, 0.8);
+  animation: romantic-start-pulse 1.85s ease-in-out infinite;
+}
+
+.romantic-loader-start-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.romantic-loader-auth-shell {
+  margin-top: 0.26rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 140, 181, 0.34);
+  background:
+    linear-gradient(142deg, rgba(255, 74, 136, 0.16), rgba(123, 97, 255, 0.16)),
+    rgba(9, 7, 18, 0.72);
+  padding: 0.82rem;
+  display: grid;
+  gap: 0.58rem;
+  text-align: left;
+}
+
+.romantic-loader-auth-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffe7f3;
+}
+
+.romantic-loader-auth-copy {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #d6c8f3;
+  line-height: 1.45;
+}
+
+.romantic-loader-auth-form {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.romantic-loader-password-wrap {
+  position: relative;
+}
+
+.romantic-loader-password-wrap .input {
+  padding-right: 3.4rem;
+}
+
+.romantic-loader-password-toggle {
+  position: absolute;
+  right: 0.38rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 141, 182, 0.36);
+  background: rgba(255, 82, 142, 0.22);
+  color: #ffeef7;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.24rem 0.44rem;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-password-toggle:hover {
+  transform: translateY(-50%) translateY(-1px);
+  border-color: rgba(255, 167, 199, 0.58);
+  background: rgba(255, 96, 154, 0.28);
+}
+
+.romantic-loader-password-toggle:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-auth-actions {
+  margin-top: 0.16rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.44rem;
+}
+
+.romantic-loader-auth-field {
+  font-size: 0.76rem;
+  color: #eedffb;
+}
+
+.romantic-loader-auth-field .input {
+  background: rgba(8, 6, 16, 0.9);
+}
+
+.romantic-loader-auth-submit {
+  width: 100%;
+  margin-top: 0.16rem;
+}
+
+.romantic-loader-view-button {
+  width: 100%;
+  margin-top: 0.16rem;
+}
+
+.romantic-loader-auth-feedback {
+  margin: 0;
+}
+
+@keyframes romantic-loader-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes romantic-heart-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.78) rotate(45deg);
+  }
+  16% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-8px, -110vh, 0) scale(1.22) rotate(45deg);
+  }
+}
+
+@keyframes romantic-aura-shift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(12px, -10px, 0) scale(1.08);
+  }
+}
+
+@keyframes romantic-ring-left {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(7px) rotate(-4deg);
+  }
+}
+
+@keyframes romantic-ring-right {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(-7px) rotate(4deg);
+  }
+}
+
+@keyframes romantic-start-pulse {
+  0%,
+  100% {
+    box-shadow: 0 20px 36px -24px rgba(255, 72, 134, 0.78);
+  }
+  50% {
+    box-shadow: 0 24px 42px -22px rgba(122, 97, 255, 0.76);
+  }
+}
+
 .app-layout {
   min-height: 100vh;
   width: 100%;
   padding: 0.9rem;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.9rem;
+  position: relative;
 }
 
 .app-main {
   min-width: 0;
+  margin-left: calc(min(280px, 26vw) + 0.9rem);
+  transition: margin-left 180ms ease;
 }
 
 .app-sidebar {
-  position: sticky;
+  position: fixed;
+  left: 0.9rem;
   top: 0.9rem;
-  height: calc(100vh - 1.8rem);
+  bottom: 0.9rem;
+  height: auto;
+  max-height: none;
   width: min(280px, 26vw);
+  overflow: hidden;
+  z-index: 40;
   border-radius: 20px;
   border: 1px solid rgba(255, 127, 168, 0.2);
   background:
@@ -156,6 +542,8 @@ a {
   display: grid;
   gap: 0.44rem;
   align-content: flex-start;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .app-sidebar-link {
@@ -404,6 +792,61 @@ a {
   background: rgba(255, 70, 130, 0.2);
 }
 
+.admin-login-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 135;
+  background: rgba(5, 3, 11, 0.68);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.admin-login-modal {
+  width: min(420px, 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 132, 174, 0.36);
+  background:
+    linear-gradient(145deg, rgba(255, 66, 130, 0.18), rgba(123, 97, 255, 0.18)),
+    rgba(14, 11, 25, 0.95);
+  box-shadow: 0 24px 46px -30px rgba(0, 0, 0, 0.86);
+  padding: 0.88rem;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.admin-login-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.62rem;
+}
+
+.admin-login-modal-head h2 {
+  margin: 0;
+  font-family: var(--font-sora), sans-serif;
+  font-size: 1rem;
+  color: #ffeef7;
+}
+
+.admin-login-modal-close {
+  padding: 0.42rem 0.72rem;
+}
+
+.admin-login-modal-form {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.admin-login-modal-submit {
+  width: 100%;
+}
+
+.admin-login-modal .feedback {
+  margin: 0;
+}
+
 .scroll-top-button {
   position: fixed;
   right: max(1rem, env(safe-area-inset-right));
@@ -483,6 +926,10 @@ a {
 .app-sidebar.is-collapsed {
   width: 86px;
   padding: 0.82rem 0.54rem;
+}
+
+.app-sidebar.is-collapsed.is-desktop + .app-main {
+  margin-left: calc(86px + 0.9rem);
 }
 
 .app-sidebar.is-collapsed .app-sidebar-head {
@@ -1904,13 +2351,13 @@ select.input option {
 
 @media (max-width: 1080px) {
   .app-layout {
-    grid-template-columns: 1fr;
     padding: 0.58rem;
-    gap: 0;
   }
 
   .app-main {
     padding-left: 4.4rem;
+    margin-left: 0;
+    transition: none;
   }
 
   .app-sidebar {
@@ -2055,6 +2502,30 @@ select.input option {
 
   .app-sidebar-link-description {
     font-size: 0.69rem;
+  }
+
+  .romantic-loader-card {
+    width: min(560px, calc(100vw - 1rem));
+    border-radius: 18px;
+    padding: 0.98rem;
+  }
+
+  .romantic-loader-title {
+    font-size: clamp(2.25rem, 11vw, 3.7rem);
+  }
+
+  .romantic-loader-copy {
+    font-size: 0.82rem;
+  }
+
+  .romantic-loader-auth-shell {
+    padding: 0.72rem;
+    gap: 0.5rem;
+  }
+
+  .romantic-loader-start-button,
+  .romantic-loader-auth-submit {
+    font-size: 0.86rem;
   }
 
   .admin-profile-shortcut {
@@ -2332,6 +2803,39 @@ select.input option {
     height: 28px;
   }
 
+  .romantic-loader-card {
+    width: calc(100vw - 0.75rem);
+    border-radius: 14px;
+    padding: 0.74rem;
+    gap: 0.52rem;
+  }
+
+  .romantic-loader-title {
+    font-size: clamp(1.86rem, 13vw, 3rem);
+  }
+
+  .romantic-loader-rings {
+    margin-top: 0.24rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .romantic-loader-auth-shell {
+    border-radius: 12px;
+    padding: 0.62rem;
+  }
+
+  .romantic-loader-auth-title {
+    font-size: 0.84rem;
+  }
+
+  .romantic-loader-auth-copy {
+    font-size: 0.74rem;
+  }
+
+  .romantic-loader-auth-actions {
+    grid-template-columns: 1fr;
+  }
+
   .admin-profile-shell {
     right: max(0.5rem, env(safe-area-inset-right));
     top: max(0.5rem, env(safe-area-inset-top));
@@ -2353,6 +2857,20 @@ select.input option {
   .admin-profile-shortcut-avatar {
     width: 24px;
     height: 24px;
+  }
+
+  .admin-login-modal-backdrop {
+    padding: 0.72rem;
+  }
+
+  .admin-login-modal {
+    border-radius: 14px;
+    padding: 0.74rem;
+    gap: 0.62rem;
+  }
+
+  .admin-login-modal-head h2 {
+    font-size: 0.92rem;
   }
 
   .scroll-top-button {
@@ -2514,6 +3032,23 @@ select.input option {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .romantic-loader,
+  .romantic-loader-progress-fill,
+  .romantic-loader-aura,
+  .romantic-loader-ring,
+  .romantic-loader-start-button {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .romantic-loader-hearts {
+    display: none;
+  }
+
+  .romantic-loader-progress-fill {
+    transform: scaleX(1);
+  }
+
   .scroll-top-button,
   .scroll-top-progress {
     transition: none;

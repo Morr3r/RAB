@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 export const ADMIN_COOKIE_NAME = "engagement_admin";
-const SESSION_MAX_AGE = 60 * 60 * 8;
+export const VIEW_COOKIE_NAME = "engagement_view";
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 32;
 const PASSWORD_MIN_LENGTH = 8;
@@ -60,14 +60,14 @@ export function validateLoginPayload(payload: LoginPayload) {
   };
 }
 
-function createTokenPayload() {
-  return `${getAdminUsername()}:${getAdminPassword()}`;
+function createTokenPayload(mode: "admin" | "view") {
+  return `${mode}:${getAdminUsername()}:${getAdminPassword()}`;
 }
 
 export function buildAdminToken() {
   return crypto
     .createHmac("sha256", getAuthSecret())
-    .update(createTokenPayload())
+    .update(createTokenPayload("admin"))
     .digest("hex");
 }
 
@@ -79,12 +79,26 @@ export function isValidAdminToken(token?: string | null) {
   return token === buildAdminToken();
 }
 
+export function buildViewToken() {
+  return crypto
+    .createHmac("sha256", getAuthSecret())
+    .update(createTokenPayload("view"))
+    .digest("hex");
+}
+
+export function isValidViewToken(token?: string | null) {
+  if (!token) {
+    return false;
+  }
+
+  return token === buildViewToken();
+}
+
 export function getAdminCookieOptions() {
   return {
     httpOnly: true,
     sameSite: "strict" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_MAX_AGE,
   };
 }

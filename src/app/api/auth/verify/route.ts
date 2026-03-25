@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   ADMIN_COOKIE_NAME,
   VIEW_COOKIE_NAME,
-  buildAdminToken,
+  buildViewToken,
   getAdminCookieOptions,
   validateLoginPayload,
   verifyCredential,
@@ -15,18 +15,18 @@ const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
 };
 
-type LoginBody = {
+type VerifyBody = {
   username?: string;
   password?: string;
 };
 
 export async function POST(request: Request) {
-  let payload: LoginBody = {};
+  let payload: VerifyBody = {};
 
   try {
     const parsed = await request.json();
     if (typeof parsed === "object" && parsed !== null) {
-      payload = parsed as LoginBody;
+      payload = parsed as VerifyBody;
     }
   } catch {
     payload = {};
@@ -61,6 +61,8 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json(
     {
+      success: true,
+      mode: "view",
       username: validated.username,
     },
     {
@@ -68,10 +70,11 @@ export async function POST(request: Request) {
     }
   );
 
-  response.cookies.set(ADMIN_COOKIE_NAME, buildAdminToken(), getAdminCookieOptions());
-  response.cookies.set(VIEW_COOKIE_NAME, "", {
+  response.cookies.set(VIEW_COOKIE_NAME, buildViewToken(), getAdminCookieOptions());
+  response.cookies.set(ADMIN_COOKIE_NAME, "", {
     ...getAdminCookieOptions(),
     maxAge: 0,
   });
+
   return response;
 }

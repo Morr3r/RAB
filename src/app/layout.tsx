@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Sora, Space_Grotesk } from "next/font/google";
+import { Great_Vibes, Sora, Space_Grotesk } from "next/font/google";
 import AppSidebar from "@/components/app-sidebar";
 import AdminProfileShortcut from "@/components/admin-profile-shortcut";
 import ScrollToTopButton from "@/components/scroll-to-top-button";
@@ -12,6 +12,12 @@ const spaceGrotesk = Space_Grotesk({
 
 const sora = Sora({
   variable: "--font-sora",
+  subsets: ["latin"],
+});
+
+const greatVibes = Great_Vibes({
+  variable: "--font-romantic",
+  weight: "400",
   subsets: ["latin"],
 });
 
@@ -34,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${spaceGrotesk.variable} ${sora.variable} h-full antialiased`}
+      className={`${spaceGrotesk.variable} ${sora.variable} ${greatVibes.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <div className="app-layout">

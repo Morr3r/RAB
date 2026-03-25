@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import ExpenseDashboard from "@/components/expense-dashboard";
+import HomeLoadingGate from "@/components/home-loading-gate";
 import { ADMIN_COOKIE_NAME, isValidAdminToken } from "@/lib/auth";
 import { readExpenseData } from "@/lib/expenses";
 
@@ -12,9 +13,11 @@ export default async function Home() {
   const isAdmin = isValidAdminToken(adminToken);
 
   return (
-    <ExpenseDashboard
-      initialData={data}
-      initialIsAdmin={isAdmin}
-    />
+    <HomeLoadingGate>
+      <ExpenseDashboard
+        initialData={data}
+        initialIsAdmin={isAdmin}
+      />
+    </HomeLoadingGate>
   );
 }

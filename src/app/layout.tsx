@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Great_Vibes, Sora, Space_Grotesk } from "next/font/google";
 import AppSidebar from "@/components/app-sidebar";
 import AdminProfileShortcut from "@/components/admin-profile-shortcut";
+import BackgroundMusicPlayer from "@/components/background-music-player";
 import ScrollToTopButton from "@/components/scroll-to-top-button";
 import "./globals.css";
 
@@ -47,6 +48,7 @@ export default function RootLayout({
           <AppSidebar />
           <div className="app-main">{children}</div>
         </div>
+        <BackgroundMusicPlayer />
         <AdminProfileShortcut />
         <ScrollToTopButton />
       </body>

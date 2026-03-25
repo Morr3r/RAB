@@ -59,6 +59,8 @@ type DatabaseClient = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 type NewExpenseHistoryEntry = Omit<ExpenseHistoryEntry, "id" | "changedAt">;
 
 const MAX_HISTORY_DETAILS = 12;
+const HISTORY_BOOTSTRAP_ACTOR = "system";
+const HISTORY_BOOTSTRAP_SUMMARY = "Tracking history diaktifkan.";
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -446,6 +448,15 @@ async function ensureExpenseSchema(client: DatabaseClient) {
     ON expense_history (changed_at DESC, id DESC);
   `);
 
+  await client.query(
+    `
+      DELETE FROM expense_history
+      WHERE actor = $1
+        AND summary = $2
+    `,
+    [HISTORY_BOOTSTRAP_ACTOR, HISTORY_BOOTSTRAP_SUMMARY]
+  );
+
   schemaEnsured = true;
 }
 
@@ -474,19 +485,6 @@ async function insertExpenseHistory(client: DatabaseClient, entry: NewExpenseHis
   );
 }
 
-async function hasExpenseHistory(client: DatabaseClient) {
-  const result = await client.query<{ id: number }>(
-    `
-      SELECT id
-      FROM expense_history
-      ORDER BY id DESC
-      LIMIT 1
-    `
-  );
-
-  return result.rows.length > 0;
-}
-
 async function getCurrentExpenseData(client: DatabaseClient) {
   const result = await client.query<ExpenseRow>(
     `
@@ -504,32 +502,12 @@ async function getCurrentExpenseData(client: DatabaseClient) {
   return mapRowToExpenseData(result.rows[0]);
 }
 
-async function ensureHistoryBootstrap(client: DatabaseClient, data: ExpenseData) {
-  const hasHistory = await hasExpenseHistory(client);
-  if (hasHistory) {
-    return;
-  }
-
-  await insertExpenseHistory(client, {
-    page: "dashboard",
-    pageLabel: "Dashboard Biaya",
-    actor: "system",
-    summary: "Tracking history diaktifkan.",
-    details: [
-      `Snapshot awal tersimpan dengan total ${formatRupiah(
-        data.items.reduce((sum, item) => sum + item.unitCost * item.quantity, 0)
-      )}.`,
-    ],
-  });
-}
-
 export async function readExpenseData() {
   const pool = getDbPool();
   await ensureExpenseSchema(pool);
 
   const existingData = await getCurrentExpenseData(pool);
   if (existingData) {
-    await ensureHistoryBootstrap(pool, existingData);
     return existingData;
   }
 
@@ -540,7 +518,6 @@ export async function readExpenseData() {
   });
 
   await upsertExpenseData(pool, seededData);
-  await ensureHistoryBootstrap(pool, seededData);
   return seededData;
 }
 
@@ -596,10 +573,11 @@ export async function readExpenseHistory(limit = 40) {
     `
       SELECT id, changed_at, page_key, page_label, actor, summary, details
       FROM expense_history
+      WHERE NOT (actor = $2 AND summary = $3)
       ORDER BY changed_at DESC, id DESC
       LIMIT $1
     `,
-    [normalizedLimit]
+    [normalizedLimit, HISTORY_BOOTSTRAP_ACTOR, HISTORY_BOOTSTRAP_SUMMARY]
   );
 
   return result.rows.map((row) => mapRowToExpenseHistory(row));

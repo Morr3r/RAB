@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   useTransition,
-  type FormEvent,
 } from "react";
 import Link from "next/link";
 import type { ExpenseData, ExpenseItem } from "@/lib/expenses";
@@ -25,11 +24,6 @@ type ChartMode = "donut" | "bar";
 type FeedbackMessage = {
   type: FeedbackType;
   text: string;
-};
-
-type LoginFieldErrors = {
-  username?: string;
-  password?: string;
 };
 
 type ItemEditorDraft = {
@@ -64,7 +58,6 @@ type ChartTooltipState = {
 type ExpenseDashboardProps = {
   initialData: ExpenseData;
   initialIsAdmin: boolean;
-  initialAdminUsername?: string | null;
 };
 
 type ExpensesApiResponse = {
@@ -85,12 +78,6 @@ type AuthSessionApiResponse = {
   error?: string;
 };
 
-type AuthLoginApiResponse = {
-  username?: string;
-  fieldErrors?: LoginFieldErrors;
-  error?: string;
-};
-
 const CHART_COLORS = [
   "#ff4d6d",
   "#ff6f91",
@@ -101,11 +88,6 @@ const CHART_COLORS = [
   "#00f5d4",
 ];
 
-const LOGIN_USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
-const LOGIN_USERNAME_MIN_LENGTH = 3;
-const LOGIN_USERNAME_MAX_LENGTH = 32;
-const LOGIN_PASSWORD_MIN_LENGTH = 8;
-const LOGIN_PASSWORD_MAX_LENGTH = 128;
 const EXPENSE_SYNC_INTERVAL_MS = 10000;
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
@@ -192,34 +174,6 @@ function describeBudgetMood(delta: number) {
     return "Estimasi saat ini di atas referensi, cek item prioritas.";
   }
   return "Estimasi masih di bawah referensi, ruang cadangan masih aman.";
-}
-
-function validateLoginFields(usernameRaw: string, passwordRaw: string): LoginFieldErrors {
-  const username = usernameRaw.trim();
-  const password = passwordRaw.trim();
-  const fieldErrors: LoginFieldErrors = {};
-
-  if (!username) {
-    fieldErrors.username = "Username wajib diisi.";
-  } else if (
-    username.length < LOGIN_USERNAME_MIN_LENGTH ||
-    username.length > LOGIN_USERNAME_MAX_LENGTH
-  ) {
-    fieldErrors.username = `Username harus ${LOGIN_USERNAME_MIN_LENGTH}-${LOGIN_USERNAME_MAX_LENGTH} karakter.`;
-  } else if (!LOGIN_USERNAME_PATTERN.test(username)) {
-    fieldErrors.username = "Username hanya boleh huruf, angka, titik, garis bawah, atau strip.";
-  }
-
-  if (!password) {
-    fieldErrors.password = "Password wajib diisi.";
-  } else if (
-    password.length < LOGIN_PASSWORD_MIN_LENGTH ||
-    password.length > LOGIN_PASSWORD_MAX_LENGTH
-  ) {
-    fieldErrors.password = `Password harus ${LOGIN_PASSWORD_MIN_LENGTH}-${LOGIN_PASSWORD_MAX_LENGTH} karakter.`;
-  }
-
-  return fieldErrors;
 }
 
 function createItemEditorDraft(item: ExpenseItem): ItemEditorDraft {
@@ -460,13 +414,8 @@ function BarChart({
 export default function ExpenseDashboard({
   initialData,
   initialIsAdmin,
-  initialAdminUsername,
 }: ExpenseDashboardProps) {
   const [data, setData] = useState<ExpenseData>(initialData);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [adminUsername, setAdminUsername] = useState(initialAdminUsername?.trim() ?? "");
-  const [loginErrors, setLoginErrors] = useState<LoginFieldErrors>({});
   const [isAdmin, setIsAdmin] = useState(initialIsAdmin);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>("manual");
@@ -505,19 +454,10 @@ export default function ExpenseDashboard({
 
         if (sessionResponse.ok && sessionPayload) {
           const nextIsAdmin = sessionPayload.isAdmin === true;
-          const nextAdminUsername =
-            nextIsAdmin && typeof sessionPayload.username === "string"
-              ? sessionPayload.username.trim()
-              : "";
 
           setIsAdmin(nextIsAdmin);
-          setAdminUsername(nextAdminUsername);
-          if (nextIsAdmin) {
-            setUsername(nextAdminUsername);
-          }
         } else if (!initialIsAdmin) {
           setIsAdmin(false);
-          setAdminUsername("");
         }
       } catch {
         if (!isCancelled) {
@@ -823,103 +763,6 @@ export default function ExpenseDashboard({
     });
   }, [closeItemEditor, data, isAdmin, startTransition]);
 
-  const login = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const fieldErrors = validateLoginFields(username, password);
-
-    if (Object.keys(fieldErrors).length > 0) {
-      setLoginErrors(fieldErrors);
-      setFeedback({ type: "error", text: "Mohon perbaiki form login terlebih dahulu." });
-      return;
-    }
-
-    setLoginErrors({});
-    setFeedback({ type: "info", text: "Memverifikasi akun admin..." });
-
-    startTransition(() => {
-      void (async () => {
-        const normalizedUsername = username.trim();
-        const normalizedPassword = password.trim();
-
-        try {
-          const response = await fetch("/api/auth/login", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              username: normalizedUsername,
-              password: normalizedPassword,
-            }),
-          });
-
-          const payload = await parseJsonResponse<AuthLoginApiResponse>(response);
-          if (!response.ok) {
-            if (payload?.fieldErrors) {
-              setLoginErrors(payload.fieldErrors);
-            }
-            throw new Error(resolveApiErrorMessage(payload, "Username atau password tidak valid."));
-          }
-
-          const loggedInUsername =
-            typeof payload?.username === "string" && payload.username.trim().length > 0
-              ? payload.username.trim()
-              : normalizedUsername;
-
-          setIsAdmin(true);
-          setAdminUsername(loggedInUsername);
-          setUsername(loggedInUsername);
-          setPassword("");
-          setLoginErrors({});
-          closeItemEditor();
-          setLastDraft(null);
-          setFeedback({
-            type: "success",
-            text: `Login admin berhasil sebagai ${loggedInUsername}.`,
-          });
-        } catch (error) {
-          setFeedback({
-            type: "error",
-            text: resolveRuntimeErrorMessage(error, "Gagal login admin."),
-          });
-        }
-      })();
-    });
-  };
-
-  const logout = () => {
-    setFeedback({ type: "info", text: "Mengakhiri sesi admin..." });
-
-    startTransition(() => {
-      void (async () => {
-        try {
-          const response = await fetch("/api/auth/logout", {
-            method: "POST",
-          });
-
-          const payload = await parseJsonResponse<{ error?: string }>(response);
-          if (!response.ok) {
-            throw new Error(resolveApiErrorMessage(payload, "Gagal logout admin."));
-          }
-
-          setIsAdmin(false);
-          setUsername("");
-          setPassword("");
-          setAdminUsername("");
-          setLoginErrors({});
-          closeItemEditor();
-          setLastDraft(null);
-          setFeedback({ type: "success", text: "Sesi admin ditutup." });
-        } catch (error) {
-          setFeedback({
-            type: "error",
-            text: resolveRuntimeErrorMessage(error, "Gagal menutup sesi admin."),
-          });
-        }
-      })();
-    });
-  };
-
   useEffect(() => {
     if (lastDraft) {
       return;
@@ -1010,12 +853,11 @@ export default function ExpenseDashboard({
 
   const summaryRate =
     data.referenceTotal === 0 ? 0 : Math.round((calculatedTotal / data.referenceTotal) * 100);
-  const isLoginDataValid = Object.keys(validateLoginFields(username, password)).length === 0;
 
   return (
     <div className="page-shell">
       <main className="content-wrap">
-        <section className="hero-card hero-future">
+        <section className="hero-card hero-future hero-dashboard">
           <div className="hero-main">
             <div className="hero-topline">
             </div>
@@ -1026,6 +868,9 @@ export default function ExpenseDashboard({
             </p>
             <div className="hero-chip-wrap">
               <p className="meta-chip">Terakhir diperbarui: {formatDate(data.updatedAt)}</p>
+              <p className="meta-chip">
+                {isAdmin ? "Mode Admin Aktif" : "Akses edit via profil kanan atas"}
+              </p>
               <Link href="/history" className="meta-chip history-shortcut">
                 Lihat History Perubahan
               </Link>
@@ -1044,98 +889,6 @@ export default function ExpenseDashboard({
                 <p className="metric-number">{data.items.length} Item</p>
               </div>
             </div>
-          </div>
-
-          <div className="admin-box">
-            <p className="admin-title">Akses Admin</p>
-            {!isAdmin ? (
-              <form onSubmit={login}>
-                <label className="field-label">
-                  Username
-                  <input
-                    className="input"
-                    autoComplete="username"
-                    value={username}
-                    minLength={LOGIN_USERNAME_MIN_LENGTH}
-                    maxLength={LOGIN_USERNAME_MAX_LENGTH}
-                    pattern="[A-Za-z0-9._-]+"
-                    title="Gunakan huruf, angka, titik, garis bawah, atau strip."
-                    aria-invalid={Boolean(loginErrors.username)}
-                    aria-describedby={loginErrors.username ? "login-username-error" : undefined}
-                    onChange={(event) => {
-                      setUsername(event.target.value);
-                      setLoginErrors((current) =>
-                        current.username ? { ...current, username: undefined } : current
-                      );
-                    }}
-                    required
-                  />
-                  {loginErrors.username && (
-                    <span className="field-error" id="login-username-error">
-                      {loginErrors.username}
-                    </span>
-                  )}
-                </label>
-                <label className="field-label">
-                  Password
-                  <input
-                    className="input"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    minLength={LOGIN_PASSWORD_MIN_LENGTH}
-                    maxLength={LOGIN_PASSWORD_MAX_LENGTH}
-                    aria-invalid={Boolean(loginErrors.password)}
-                    aria-describedby={loginErrors.password ? "login-password-error" : undefined}
-                    onChange={(event) => {
-                      setPassword(event.target.value);
-                      setLoginErrors((current) =>
-                        current.password ? { ...current, password: undefined } : current
-                      );
-                    }}
-                    required
-                  />
-                  {loginErrors.password && (
-                    <span className="field-error" id="login-password-error">
-                      {loginErrors.password}
-                    </span>
-                  )}
-                </label>
-                <button
-                  className="button button-primary"
-                  disabled={isPending || !isLoginDataValid}
-                  type="submit"
-                >
-                  Login Admin
-                </button>
-              </form>
-            ) : (
-              <div className="admin-state">
-                <div className="admin-profile">
-                  <span className="admin-avatar" aria-hidden>
-                    <svg viewBox="0 0 24 24" width="14" height="14" focusable="false">
-                      <path
-                        d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12Zm0 2.25c-3.52 0-6.75 1.82-6.75 4.05 0 .38.31.7.7.7h12.1c.39 0 .7-.32.7-.7 0-2.23-3.23-4.05-6.75-4.05Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </span>
-                  <div className="admin-profile-copy">
-                    <p className="admin-profile-label">Admin Aktif</p>
-                    <p className="admin-profile-name">{adminUsername || "Admin"}</p>
-                  </div>
-                </div>
-                <p className="hero-copy hero-copy-admin">
-                  Mode admin aktif. Data tampil seperti user, gunakan tombol Edit di tiap item
-                  untuk membuka pop-up edit.
-                </p>
-                <div className="admin-state-actions">
-                  <button className="button button-secondary" onClick={logout} disabled={isPending}>
-                    Logout
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </section>
 

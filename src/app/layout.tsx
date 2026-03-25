@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, Space_Grotesk } from "next/font/google";
 import AppSidebar from "@/components/app-sidebar";
+import AdminProfileShortcut from "@/components/admin-profile-shortcut";
+import ScrollToTopButton from "@/components/scroll-to-top-button";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -39,6 +41,8 @@ export default function RootLayout({
           <AppSidebar />
           <div className="app-main">{children}</div>
         </div>
+        <AdminProfileShortcut />
+        <ScrollToTopButton />
       </body>
     </html>
   );

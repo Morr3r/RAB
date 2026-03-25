@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { readExpenseHistory } from "@/lib/expenses";
+import HistoryTimeline from "@/components/history-timeline";
 
 export const dynamic = "force-dynamic";
 
@@ -43,16 +43,6 @@ export default async function HistoryPage() {
               <p className="meta-chip">{history.length} aktivitas tercatat</p>
             </div>
           </div>
-
-          <div className="history-hero-cta">
-            <p className="history-hero-cta-title">Kembali ke workspace utama</p>
-            <p className="history-hero-cta-copy">
-              Lakukan perubahan data dari dashboard, lalu pantau jejak perubahan di halaman ini.
-            </p>
-            <Link href="/" className="button button-primary">
-              Buka Dashboard
-            </Link>
-          </div>
         </section>
 
         <section className="history-page-grid">
@@ -81,45 +71,7 @@ export default async function HistoryPage() {
             )}
           </article>
 
-          <article className="panel history-log-panel">
-            <div className="panel-head">
-              <div>
-                <h2 className="panel-title">Timeline Aktivitas</h2>
-                <p className="panel-subtitle">
-                  Urutan perubahan terbaru, termasuk item apa saja yang diubah.
-                </p>
-              </div>
-            </div>
-
-            {history.length === 0 ? (
-              <p className="history-empty">Belum ada aktivitas perubahan.</p>
-            ) : (
-              <div className="history-log-list">
-                {history.map((entry) => (
-                  <article key={entry.id} className="history-log-item">
-                    <header className="history-log-head">
-                      <div className="history-log-head-main">
-                        <p className="history-log-page">{entry.pageLabel}</p>
-                        <h3>{entry.summary}</h3>
-                      </div>
-                      <div className="history-log-meta">
-                        <p>{formatDate(entry.changedAt)}</p>
-                        <p>oleh {entry.actor}</p>
-                      </div>
-                    </header>
-
-                    {entry.details.length > 0 && (
-                      <ul className="history-log-details">
-                        {entry.details.map((detail, index) => (
-                          <li key={`${entry.id}-${index}`}>{detail}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </article>
-                ))}
-              </div>
-            )}
-          </article>
+          <HistoryTimeline entries={history} />
         </section>
       </main>
     </div>

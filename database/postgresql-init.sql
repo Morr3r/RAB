@@ -6,6 +6,19 @@ CREATE TABLE IF NOT EXISTS public.expense_data (
   items JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
+CREATE TABLE IF NOT EXISTS public.expense_history (
+  id BIGSERIAL PRIMARY KEY,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  page_key TEXT NOT NULL,
+  page_label TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  details JSONB NOT NULL DEFAULT '[]'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS expense_history_changed_at_idx
+ON public.expense_history (changed_at DESC, id DESC);
+
 INSERT INTO public.expense_data (id, event_name, reference_total, updated_at, items)
 VALUES (
   1,
@@ -23,3 +36,15 @@ VALUES (
   ]'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.expense_history (page_key, page_label, actor, summary, details)
+SELECT
+  'dashboard',
+  'Dashboard Biaya',
+  'system',
+  'Tracking history diaktifkan.',
+  '[ "Snapshot awal data berhasil dibuat." ]'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.expense_history
+);

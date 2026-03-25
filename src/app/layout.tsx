@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, Space_Grotesk } from "next/font/google";
+import AppSidebar from "@/components/app-sidebar";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -33,7 +34,12 @@ export default function RootLayout({
       lang="id"
       className={`${spaceGrotesk.variable} ${sora.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full">
+        <div className="app-layout">
+          <AppSidebar />
+          <div className="app-main">{children}</div>
+        </div>
+      </body>
     </html>
   );
 }

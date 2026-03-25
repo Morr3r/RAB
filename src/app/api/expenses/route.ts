@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { ADMIN_COOKIE_NAME, isValidAdminToken } from "@/lib/auth";
+import { ADMIN_COOKIE_NAME, getAdminUsername, isValidAdminToken } from "@/lib/auth";
 import { readExpenseData, type ExpenseData, writeExpenseData } from "@/lib/expenses";
 
 export const runtime = "nodejs";
@@ -8,6 +8,13 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
+};
+
+type ExpenseUpdatePayload = Partial<ExpenseData> & {
+  meta?: {
+    page?: string;
+    pageLabel?: string;
+  };
 };
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -57,11 +64,11 @@ export async function PUT(request: Request) {
     );
   }
 
-  let payload: Partial<ExpenseData>;
+  let payload: ExpenseUpdatePayload;
 
   try {
     const parsed = await request.json();
-    payload = typeof parsed === "object" && parsed !== null ? (parsed as Partial<ExpenseData>) : {};
+    payload = typeof parsed === "object" && parsed !== null ? (parsed as ExpenseUpdatePayload) : {};
   } catch {
     return NextResponse.json(
       {
@@ -75,7 +82,12 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const data = await writeExpenseData(payload);
+    const { meta, ...expensePayload } = payload;
+    const data = await writeExpenseData(expensePayload, {
+      actor: getAdminUsername(),
+      page: meta?.page,
+      pageLabel: meta?.pageLabel,
+    });
 
     return NextResponse.json(
       { data },

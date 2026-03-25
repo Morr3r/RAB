@@ -9,6 +9,7 @@ import {
   useTransition,
   type FormEvent,
 } from "react";
+import Link from "next/link";
 import type { ExpenseData, ExpenseItem } from "@/lib/expenses";
 
 type FeedbackType = "success" | "error" | "info";
@@ -69,6 +70,13 @@ type ExpenseDashboardProps = {
 type ExpensesApiResponse = {
   data?: Partial<ExpenseData>;
   error?: string;
+};
+
+type ExpensesPutRequest = ExpenseData & {
+  meta: {
+    page: string;
+    pageLabel: string;
+  };
 };
 
 type AuthSessionApiResponse = {
@@ -773,6 +781,13 @@ export default function ExpenseDashboard({
           ...data,
           items: data.items.map((item) => ({ ...item })),
         };
+        const requestBody: ExpensesPutRequest = {
+          ...outgoingData,
+          meta: {
+            page: "dashboard",
+            pageLabel: "Dashboard Biaya",
+          },
+        };
 
         try {
           const response = await fetch("/api/expenses", {
@@ -780,7 +795,7 @@ export default function ExpenseDashboard({
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(outgoingData),
+            body: JSON.stringify(requestBody),
           });
 
           const payload = await parseJsonResponse<ExpensesApiResponse>(response);
@@ -1011,6 +1026,9 @@ export default function ExpenseDashboard({
             </p>
             <div className="hero-chip-wrap">
               <p className="meta-chip">Terakhir diperbarui: {formatDate(data.updatedAt)}</p>
+              <Link href="/history" className="meta-chip history-shortcut">
+                Lihat History Perubahan
+              </Link>
             </div>
             <div className="hero-metrics">
               <div className="metric-tile">

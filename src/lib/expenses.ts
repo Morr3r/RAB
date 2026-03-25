@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { getDbPool } from "@/lib/db";
 
 export type ExpenseItem = {
@@ -17,6 +17,22 @@ export type ExpenseData = {
   items: ExpenseItem[];
 };
 
+export type ExpenseHistoryEntry = {
+  id: number;
+  changedAt: string;
+  page: string;
+  pageLabel: string;
+  actor: string;
+  summary: string;
+  details: string[];
+};
+
+export type ExpenseChangeContext = {
+  page?: string;
+  pageLabel?: string;
+  actor?: string;
+};
+
 type ExpenseRow = {
   event_name: string;
   reference_total: number;
@@ -24,9 +40,31 @@ type ExpenseRow = {
   items: unknown;
 };
 
+type ExpenseHistoryRow = {
+  id: number;
+  changed_at: Date | string;
+  page_key: string;
+  page_label: string;
+  actor: string;
+  summary: string;
+  details: unknown;
+};
+
 type SanitizableExpensePayload = Omit<Partial<ExpenseData>, "items"> & {
   items?: Partial<ExpenseItem>[];
 };
+
+type DatabaseClient = Pick<Pool, "query"> | Pick<PoolClient, "query">;
+
+type NewExpenseHistoryEntry = Omit<ExpenseHistoryEntry, "id" | "changedAt">;
+
+const MAX_HISTORY_DETAILS = 12;
+
+const idrFormatter = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  maximumFractionDigits: 0,
+});
 
 const defaultData: ExpenseData = {
   eventName: "Rincian Biaya Lamaran Af&Zah",
@@ -104,6 +142,10 @@ function toPositiveInteger(value: unknown, fallback = 0) {
   return Math.round(parsed);
 }
 
+function formatRupiah(value: number) {
+  return idrFormatter.format(value);
+}
+
 function sanitizeItem(item: Partial<ExpenseItem> | undefined, index: number): ExpenseItem {
   return {
     id:
@@ -138,6 +180,31 @@ function parseDatabaseItems(rawItems: unknown): Partial<ExpenseItem>[] | undefin
   }
 
   return undefined;
+}
+
+function parseHistoryDetails(rawDetails: unknown) {
+  if (Array.isArray(rawDetails)) {
+    return rawDetails
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+  }
+
+  if (typeof rawDetails === "string") {
+    try {
+      const parsed = JSON.parse(rawDetails) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0);
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
 }
 
 function sanitizeExpenseData(payload: SanitizableExpensePayload | undefined): ExpenseData {
@@ -175,12 +242,184 @@ function mapRowToExpenseData(row: ExpenseRow) {
   });
 }
 
-async function ensureExpenseSchema(pool: Pool) {
+function mapRowToExpenseHistory(row: ExpenseHistoryRow): ExpenseHistoryEntry {
+  const changedAt =
+    row.changed_at instanceof Date
+      ? row.changed_at.toISOString()
+      : typeof row.changed_at === "string"
+        ? row.changed_at
+        : new Date().toISOString();
+
+  return {
+    id: row.id,
+    changedAt,
+    page: row.page_key,
+    pageLabel: row.page_label,
+    actor: row.actor,
+    summary: row.summary,
+    details: parseHistoryDetails(row.details),
+  };
+}
+
+function areItemsEquivalent(left: ExpenseItem, right: ExpenseItem) {
+  return (
+    left.title === right.title &&
+    left.unitCost === right.unitCost &&
+    left.quantity === right.quantity &&
+    left.note === right.note &&
+    left.paid === right.paid
+  );
+}
+
+function toSentenceCase(value: string) {
+  if (value.length === 0) {
+    return value;
+  }
+
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function detectExpenseChanges(
+  currentData: ExpenseData,
+  nextData: ExpenseData,
+  context: ExpenseChangeContext
+): NewExpenseHistoryEntry | null {
+  const details: string[] = [];
+  const summaryParts: string[] = [];
+  const currentMap = new Map(currentData.items.map((item) => [item.id, item]));
+  const nextMap = new Map(nextData.items.map((item) => [item.id, item]));
+  const addedItems = nextData.items.filter((item) => !currentMap.has(item.id));
+  const removedItems = currentData.items.filter((item) => !nextMap.has(item.id));
+  let editedItems = 0;
+
+  if (currentData.eventName !== nextData.eventName) {
+    details.push(`Nama event diubah menjadi "${nextData.eventName}".`);
+  }
+
+  if (currentData.referenceTotal !== nextData.referenceTotal) {
+    details.push(
+      `Budget referensi berubah dari ${formatRupiah(currentData.referenceTotal)} ke ${formatRupiah(nextData.referenceTotal)}.`
+    );
+  }
+
+  if (addedItems.length > 0) {
+    const addedItemNames = addedItems.slice(0, 3).map((item) => item.title);
+    const suffix = addedItems.length > 3 ? ` (+${addedItems.length - 3} item lain)` : "";
+    details.push(`Item baru ditambahkan: ${addedItemNames.join(", ")}${suffix}.`);
+  }
+
+  if (removedItems.length > 0) {
+    const removedItemNames = removedItems.slice(0, 3).map((item) => item.title);
+    const suffix = removedItems.length > 3 ? ` (+${removedItems.length - 3} item lain)` : "";
+    details.push(`Item dihapus: ${removedItemNames.join(", ")}${suffix}.`);
+  }
+
+  for (const nextItem of nextData.items) {
+    const currentItem = currentMap.get(nextItem.id);
+    if (!currentItem || areItemsEquivalent(currentItem, nextItem)) {
+      continue;
+    }
+
+    editedItems += 1;
+
+    if (currentItem.title !== nextItem.title) {
+      details.push(`Nama item "${currentItem.title}" diubah menjadi "${nextItem.title}".`);
+    }
+
+    if (
+      currentItem.unitCost !== nextItem.unitCost ||
+      currentItem.quantity !== nextItem.quantity
+    ) {
+      details.push(
+        `Item "${nextItem.title}" diperbarui dari ${formatRupiah(currentItem.unitCost)} x ${currentItem.quantity} menjadi ${formatRupiah(nextItem.unitCost)} x ${nextItem.quantity}.`
+      );
+    }
+
+    const currentNote = currentItem.note.trim();
+    const nextNote = nextItem.note.trim();
+    if (currentNote !== nextNote) {
+      details.push(
+        nextNote.length > 0
+          ? `Catatan item "${nextItem.title}" diperbarui.`
+          : `Catatan item "${nextItem.title}" dihapus.`
+      );
+    }
+
+    if (currentItem.paid !== nextItem.paid) {
+      details.push(
+        `Status pembayaran "${nextItem.title}" menjadi ${nextItem.paid ? "Done / Paid" : "Belum Dibayar"}.`
+      );
+    }
+  }
+
+  const previousIds = currentData.items.map((item) => item.id);
+  const nextIds = nextData.items.map((item) => item.id);
+  const sameLength = previousIds.length === nextIds.length;
+  const sameSet = sameLength && previousIds.every((id) => nextMap.has(id));
+  const orderChanged = sameSet && previousIds.some((id, index) => id !== nextIds[index]);
+
+  if (orderChanged) {
+    details.push("Urutan item pada tabel diubah.");
+  }
+
+  if (currentData.eventName !== nextData.eventName || currentData.referenceTotal !== nextData.referenceTotal) {
+    summaryParts.push("ringkasan event diperbarui");
+  }
+
+  if (addedItems.length > 0) {
+    summaryParts.push(`${addedItems.length} item ditambahkan`);
+  }
+
+  if (removedItems.length > 0) {
+    summaryParts.push(`${removedItems.length} item dihapus`);
+  }
+
+  if (editedItems > 0) {
+    summaryParts.push(`${editedItems} item diubah`);
+  }
+
+  if (orderChanged) {
+    summaryParts.push("urutan item diperbarui");
+  }
+
+  if (details.length === 0) {
+    return null;
+  }
+
+  const normalizedDetails =
+    details.length > MAX_HISTORY_DETAILS
+      ? [
+          ...details.slice(0, MAX_HISTORY_DETAILS),
+          `+${details.length - MAX_HISTORY_DETAILS} perubahan lainnya.`,
+        ]
+      : details;
+  const summary =
+    summaryParts.length > 0 ? toSentenceCase(summaryParts.join(", ")) : "Perubahan data disimpan.";
+
+  return {
+    page:
+      typeof context.page === "string" && context.page.trim().length > 0
+        ? context.page.trim()
+        : "dashboard",
+    pageLabel:
+      typeof context.pageLabel === "string" && context.pageLabel.trim().length > 0
+        ? context.pageLabel.trim()
+        : "Dashboard Biaya",
+    actor:
+      typeof context.actor === "string" && context.actor.trim().length > 0
+        ? context.actor.trim()
+        : "admin",
+    summary,
+    details: normalizedDetails,
+  };
+}
+
+async function ensureExpenseSchema(client: DatabaseClient) {
   if (schemaEnsured) {
     return;
   }
 
-  await pool.query(`
+  await client.query(`
     CREATE TABLE IF NOT EXISTS expense_data (
       id SMALLINT PRIMARY KEY CHECK (id = 1),
       event_name TEXT NOT NULL,
@@ -190,11 +429,28 @@ async function ensureExpenseSchema(pool: Pool) {
     );
   `);
 
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS expense_history (
+      id BIGSERIAL PRIMARY KEY,
+      changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      page_key TEXT NOT NULL,
+      page_label TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      details JSONB NOT NULL DEFAULT '[]'::jsonb
+    );
+  `);
+
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS expense_history_changed_at_idx
+    ON expense_history (changed_at DESC, id DESC);
+  `);
+
   schemaEnsured = true;
 }
 
-async function upsertExpenseData(pool: Pool, data: ExpenseData) {
-  await pool.query(
+async function upsertExpenseData(client: DatabaseClient, data: ExpenseData) {
+  await client.query(
     `
       INSERT INTO expense_data (id, event_name, reference_total, updated_at, items)
       VALUES (1, $1, $2, $3, $4::jsonb)
@@ -208,8 +464,31 @@ async function upsertExpenseData(pool: Pool, data: ExpenseData) {
   );
 }
 
-async function getCurrentExpenseData(pool: Pool) {
-  const result = await pool.query<ExpenseRow>(
+async function insertExpenseHistory(client: DatabaseClient, entry: NewExpenseHistoryEntry) {
+  await client.query(
+    `
+      INSERT INTO expense_history (page_key, page_label, actor, summary, details)
+      VALUES ($1, $2, $3, $4, $5::jsonb)
+    `,
+    [entry.page, entry.pageLabel, entry.actor, entry.summary, JSON.stringify(entry.details)]
+  );
+}
+
+async function hasExpenseHistory(client: DatabaseClient) {
+  const result = await client.query<{ id: number }>(
+    `
+      SELECT id
+      FROM expense_history
+      ORDER BY id DESC
+      LIMIT 1
+    `
+  );
+
+  return result.rows.length > 0;
+}
+
+async function getCurrentExpenseData(client: DatabaseClient) {
+  const result = await client.query<ExpenseRow>(
     `
       SELECT event_name, reference_total, updated_at, items
       FROM expense_data
@@ -225,12 +504,32 @@ async function getCurrentExpenseData(pool: Pool) {
   return mapRowToExpenseData(result.rows[0]);
 }
 
+async function ensureHistoryBootstrap(client: DatabaseClient, data: ExpenseData) {
+  const hasHistory = await hasExpenseHistory(client);
+  if (hasHistory) {
+    return;
+  }
+
+  await insertExpenseHistory(client, {
+    page: "dashboard",
+    pageLabel: "Dashboard Biaya",
+    actor: "system",
+    summary: "Tracking history diaktifkan.",
+    details: [
+      `Snapshot awal tersimpan dengan total ${formatRupiah(
+        data.items.reduce((sum, item) => sum + item.unitCost * item.quantity, 0)
+      )}.`,
+    ],
+  });
+}
+
 export async function readExpenseData() {
   const pool = getDbPool();
   await ensureExpenseSchema(pool);
 
   const existingData = await getCurrentExpenseData(pool);
   if (existingData) {
+    await ensureHistoryBootstrap(pool, existingData);
     return existingData;
   }
 
@@ -241,21 +540,67 @@ export async function readExpenseData() {
   });
 
   await upsertExpenseData(pool, seededData);
+  await ensureHistoryBootstrap(pool, seededData);
   return seededData;
 }
 
-export async function writeExpenseData(payload: Partial<ExpenseData>) {
+export async function writeExpenseData(
+  payload: Partial<ExpenseData>,
+  context: ExpenseChangeContext = {}
+) {
   const pool = getDbPool();
   await ensureExpenseSchema(pool);
 
-  const currentData = (await getCurrentExpenseData(pool)) ?? defaultData;
-  const nextData = sanitizeExpenseData({
-    eventName: payload.eventName ?? currentData.eventName,
-    referenceTotal: payload.referenceTotal ?? currentData.referenceTotal,
-    items: payload.items ?? currentData.items,
-    updatedAt: new Date().toISOString(),
-  });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  await upsertExpenseData(pool, nextData);
-  return nextData;
+    const fallbackCurrentData = sanitizeExpenseData({
+      ...defaultData,
+      items: defaultData.items.map((item) => ({ ...item })),
+      updatedAt: new Date().toISOString(),
+    });
+    const currentData = (await getCurrentExpenseData(client)) ?? fallbackCurrentData;
+    const nextData = sanitizeExpenseData({
+      eventName: payload.eventName ?? currentData.eventName,
+      referenceTotal: payload.referenceTotal ?? currentData.referenceTotal,
+      items: payload.items ?? currentData.items,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await upsertExpenseData(client, nextData);
+    const historyEntry = detectExpenseChanges(currentData, nextData, context);
+    if (historyEntry) {
+      await insertExpenseHistory(client, historyEntry);
+    }
+
+    await client.query("COMMIT");
+    return nextData;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function readExpenseHistory(limit = 40) {
+  const pool = getDbPool();
+  await ensureExpenseSchema(pool);
+  await readExpenseData();
+
+  const normalizedLimit = Number.isFinite(limit)
+    ? Math.max(1, Math.min(120, Math.floor(limit)))
+    : 40;
+  const result = await pool.query<ExpenseHistoryRow>(
+    `
+      SELECT id, changed_at, page_key, page_label, actor, summary, details
+      FROM expense_history
+      ORDER BY changed_at DESC, id DESC
+      LIMIT $1
+    `,
+    [normalizedLimit]
+  );
+
+  return result.rows.map((row) => mapRowToExpenseHistory(row));
 }

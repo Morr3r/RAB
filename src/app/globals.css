@@ -47,7 +47,8 @@ body {
     radial-gradient(circle at 8% 10%, rgba(255, 63, 122, 0.24), transparent 34%),
     radial-gradient(circle at 88% 16%, rgba(123, 97, 255, 0.26), transparent 30%),
     radial-gradient(circle at 70% 95%, rgba(0, 245, 212, 0.1), transparent 36%),
-    linear-gradient(180deg, var(--bg-0), var(--bg-1) 54%, var(--bg-2));
+    linear-gradient(180deg, rgba(5, 4, 10, 0.8), rgba(12, 8, 21, 0.8) 54%, rgba(23, 10, 30, 0.8)),
+    url("/GendungSate.jpg") center / cover fixed no-repeat;
 }
 
 a {
@@ -481,6 +482,13 @@ a {
   gap: 0.85rem;
   transition: transform 200ms ease, width 180ms ease, padding 180ms ease, border-color 180ms ease,
     background-color 180ms ease;
+}
+
+.app-sidebar.is-open {
+  background:
+    linear-gradient(165deg, rgba(255, 63, 122, 0.14), rgba(123, 97, 255, 0.16)),
+    linear-gradient(180deg, rgba(14, 10, 24, 0.8), rgba(14, 10, 24, 0.8)),
+    url("/GendungSate.jpg") center / cover no-repeat;
 }
 
 .app-sidebar-head {

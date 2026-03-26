@@ -140,6 +140,31 @@ function updateNumericValue(rawValue: string, fallback = 0) {
   return Math.round(value);
 }
 
+function toDigitsOnly(rawValue: string) {
+  return rawValue.replace(/\D+/g, "");
+}
+
+function formatWithThousandDots(rawValue: string) {
+  const digits = toDigitsOnly(rawValue);
+
+  if (!digits) {
+    return "";
+  }
+
+  const normalizedDigits = digits.replace(/^0+(?=\d)/, "");
+  return normalizedDigits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function parseFormattedInteger(rawValue: string) {
+  const digits = toDigitsOnly(rawValue);
+
+  if (!digits) {
+    return Number.NaN;
+  }
+
+  return Number.parseInt(digits, 10);
+}
+
 function normalizeText(value: string) {
   return value.toLowerCase().trim();
 }
@@ -178,7 +203,7 @@ function describeBudgetMood(delta: number) {
 function createItemEditorDraft(item: ExpenseItem): ItemEditorDraft {
   return {
     title: item.title,
-    unitCost: String(item.unitCost),
+    unitCost: formatWithThousandDots(String(item.unitCost)),
     quantity: String(item.quantity),
     note: item.note,
     paid: item.paid,
@@ -188,7 +213,7 @@ function createItemEditorDraft(item: ExpenseItem): ItemEditorDraft {
 function validateItemEditorDraft(draft: ItemEditorDraft): ItemEditorErrors {
   const errors: ItemEditorErrors = {};
   const title = draft.title.trim();
-  const unitCostValue = Number(draft.unitCost);
+  const unitCostValue = parseFormattedInteger(draft.unitCost);
   const quantityValue = Number(draft.quantity);
 
   if (!title) {
@@ -628,7 +653,7 @@ export default function ExpenseDashboard({
     }
 
     const nextTitle = itemEditorDraft.title.trim();
-    const nextUnitCost = updateNumericValue(itemEditorDraft.unitCost, 0);
+    const nextUnitCost = updateNumericValue(String(parseFormattedInteger(itemEditorDraft.unitCost)), 0);
     const nextQuantity = updateNumericValue(itemEditorDraft.quantity, 0);
 
     clearFeedback();
@@ -853,7 +878,9 @@ export default function ExpenseDashboard({
       return;
     }
 
+    const bodyClassName = "item-editor-open";
     const previousOverflow = document.body.style.overflow;
+    document.body.classList.add(bodyClassName);
     document.body.style.overflow = "hidden";
     itemEditorTitleRef.current?.focus();
 
@@ -867,6 +894,7 @@ export default function ExpenseDashboard({
 
     window.addEventListener("keydown", onEscape);
     return () => {
+      document.body.classList.remove(bodyClassName);
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onEscape);
     };
@@ -1265,13 +1293,14 @@ export default function ExpenseDashboard({
                 Biaya Satuan
                 <input
                   className="number-input"
-                  type="number"
-                  min={0}
-                  step={1000}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Contoh: 1.000.000"
                   value={itemEditorDraft.unitCost}
                   onChange={(event) => {
+                    const formattedUnitCost = formatWithThousandDots(event.target.value);
                     setItemEditorDraft((current) =>
-                      current ? { ...current, unitCost: event.target.value } : current
+                      current ? { ...current, unitCost: formattedUnitCost } : current
                     );
                     setItemEditorErrors((current) => ({ ...current, unitCost: undefined }));
                   }}

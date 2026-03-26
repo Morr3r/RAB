@@ -6,6 +6,8 @@ import { GoUnmute } from "react-icons/go";
 
 const STORAGE_KEY = "engagement_music_muted";
 const DEFAULT_VOLUME = 0.52;
+const HIDE_BOTTOM_THRESHOLD_PX = 36;
+const MIN_SCROLLABLE_DISTANCE_PX = 72;
 
 function getInitialMusicMuted() {
   if (typeof window === "undefined") {
@@ -21,6 +23,7 @@ export default function BackgroundMusicPlayer() {
   const [isMuted, setIsMuted] = useState(getInitialMusicMuted);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(false);
 
   const clearUnlockHandler = useCallback(() => {
     if (!unlockHandlerRef.current) {
@@ -81,6 +84,35 @@ export default function BackgroundMusicPlayer() {
     };
   }, [attachUnlockHandler, clearUnlockHandler, isMuted]);
 
+  useEffect(() => {
+    const syncBottomState = () => {
+      const viewportHeight = window.innerHeight;
+      const scrollTop = Math.max(window.scrollY, document.documentElement.scrollTop);
+      const scrollHeight = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight
+      );
+      const maxScrollTop = Math.max(0, scrollHeight - viewportHeight);
+
+      if (maxScrollTop < MIN_SCROLLABLE_DISTANCE_PX) {
+        setIsNearBottom(false);
+        return;
+      }
+
+      const nearBottom = scrollTop >= maxScrollTop - HIDE_BOTTOM_THRESHOLD_PX;
+      setIsNearBottom((current) => (current === nearBottom ? current : nearBottom));
+    };
+
+    syncBottomState();
+    window.addEventListener("scroll", syncBottomState, { passive: true });
+    window.addEventListener("resize", syncBottomState);
+
+    return () => {
+      window.removeEventListener("scroll", syncBottomState);
+      window.removeEventListener("resize", syncBottomState);
+    };
+  }, []);
+
   const toggleMusic = () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
@@ -96,7 +128,9 @@ export default function BackgroundMusicPlayer() {
       : "Starting...";
 
   return (
-    <div className={`music-player-shell ${isPlaying ? "is-playing" : ""} ${isMuted ? "is-muted" : "is-unmuted"}`}>
+    <div
+      className={`music-player-shell ${isPlaying ? "is-playing" : ""} ${isMuted ? "is-muted" : "is-unmuted"} ${isNearBottom ? "is-hidden-at-bottom" : ""}`}
+    >
       <audio
         ref={audioRef}
         src="/hindia.mp3"

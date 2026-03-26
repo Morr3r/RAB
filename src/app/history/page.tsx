@@ -24,7 +24,6 @@ export default async function HistoryPage() {
       <main className="content-wrap content-wrap-history">
         <section className="hero-card hero-future history-hero">
           <div className="hero-main">
-            <p className="eyebrow">Audit Timeline</p>
             <h1>History Perubahan Terakhir</h1>
             <p className="hero-copy">
               Setiap simpan perubahan akan tercatat otomatis lengkap dengan detail item yang diubah.

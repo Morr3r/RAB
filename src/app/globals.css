@@ -884,12 +884,18 @@ a {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 0.52rem;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease;
 }
 
 .music-player-shell:hover {
   transform: translateX(-50%) translateY(-1px);
   border-color: rgba(255, 162, 196, 0.55);
+}
+
+.music-player-shell.is-hidden-at-bottom {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(calc(100% + 0.75rem));
 }
 
 .music-player-shell.is-playing {
@@ -1464,7 +1470,7 @@ a {
 .item-editor-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 170;
   background: rgba(4, 3, 10, 0.72);
   backdrop-filter: blur(5px);
   display: grid;
@@ -2588,6 +2594,14 @@ select.input option {
     justify-content: center;
   }
 
+  body.item-editor-open .app-sidebar {
+    display: none !important;
+  }
+
+  body.item-editor-open .app-main {
+    padding-left: 0;
+  }
+
   .admin-profile-shell {
     top: max(0.62rem, env(safe-area-inset-top));
     right: max(0.68rem, env(safe-area-inset-right));
@@ -2606,6 +2620,10 @@ select.input option {
     background: rgba(4, 3, 10, 0.52);
     backdrop-filter: blur(2px);
     cursor: pointer;
+  }
+
+  body.item-editor-open .app-sidebar-backdrop {
+    display: none !important;
   }
 
   .hero-card {

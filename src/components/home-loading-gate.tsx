@@ -143,8 +143,8 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
     }
 
     const stageTimer = window.setTimeout(() => {
-      // First visit: proceed directly to auth after splash, no extra click required.
-      setStage("auth");
+      // First visit: show "Klik untuk memulai" state after splash.
+      setStage("ready");
     }, SPLASH_DURATION_MS);
 
     return () => {

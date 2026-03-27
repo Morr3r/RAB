@@ -8,6 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { MdEdit } from "react-icons/md";
 import type { ExpenseData, ExpenseItem } from "@/lib/expenses";
 
 type FeedbackType = "success" | "error" | "info";
@@ -37,6 +38,13 @@ type ItemEditorErrors = {
   title?: string;
   unitCost?: string;
   quantity?: string;
+};
+
+type ItemEditorMode = "edit" | "create";
+
+type DeleteItemDialog = {
+  id: string;
+  title: string;
 };
 
 type ChartItem = {
@@ -73,6 +81,7 @@ type ExpensesPutRequest = ExpenseData & {
 
 type AuthSessionApiResponse = {
   isAdmin?: boolean;
+  isViewOnly?: boolean;
   username?: string | null;
   error?: string;
 };
@@ -119,17 +128,6 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   });
-}
-
-function createItem(): ExpenseItem {
-  return {
-    id: globalThis.crypto.randomUUID(),
-    title: "Biaya Baru",
-    unitCost: 0,
-    quantity: 0,
-    note: "",
-    paid: false,
-  };
 }
 
 function updateNumericValue(rawValue: string, fallback = 0) {
@@ -207,6 +205,16 @@ function createItemEditorDraft(item: ExpenseItem): ItemEditorDraft {
     quantity: String(item.quantity),
     note: item.note,
     paid: item.paid,
+  };
+}
+
+function createNewItemEditorDraft(): ItemEditorDraft {
+  return {
+    title: "",
+    unitCost: "",
+    quantity: "",
+    note: "",
+    paid: false,
   };
 }
 
@@ -448,12 +456,22 @@ export default function ExpenseDashboard({
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [lastDraft, setLastDraft] = useState<ExpenseData | null>(null);
   const [chartTooltip, setChartTooltip] = useState<ChartTooltipState | null>(null);
+  const [itemEditorMode, setItemEditorMode] = useState<ItemEditorMode>("edit");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [itemEditorDraft, setItemEditorDraft] = useState<ItemEditorDraft | null>(null);
   const [itemEditorErrors, setItemEditorErrors] = useState<ItemEditorErrors>({});
+  const [deleteItemDialog, setDeleteItemDialog] = useState<DeleteItemDialog | null>(null);
+  const [isReferenceEditing, setIsReferenceEditing] = useState(false);
+  const [referenceTotalDraft, setReferenceTotalDraft] = useState(
+    formatWithThousandDots(String(initialData.referenceTotal))
+  );
   const [isPending, startTransition] = useTransition();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const itemEditorTitleRef = useRef<HTMLInputElement | null>(null);
+  const deleteItemConfirmRef = useRef<HTMLButtonElement | null>(null);
+  const isItemEditorOpen = itemEditorDraft !== null;
+  const isDeleteItemDialogOpen = deleteItemDialog !== null;
+  const isAnyEditorDialogOpen = isItemEditorOpen || isDeleteItemDialogOpen;
 
   useEffect(() => {
     let isCancelled = false;
@@ -477,7 +495,8 @@ export default function ExpenseDashboard({
         }
 
         if (sessionResponse.ok && sessionPayload) {
-          const nextIsAdmin = sessionPayload.isAdmin === true;
+          const nextIsAdmin =
+            sessionPayload.isAdmin === true && sessionPayload.isViewOnly !== true;
 
           setIsAdmin(nextIsAdmin);
         } else if (!initialIsAdmin) {
@@ -583,11 +602,11 @@ export default function ExpenseDashboard({
     return data.items.find((item) => item.id === highlightedId) ?? null;
   }, [data.items, highlightedId]);
 
-  const clearFeedback = () => {
+  const clearFeedback = useCallback(() => {
     if (feedback) {
       setFeedback(null);
     }
-  };
+  }, [feedback]);
 
   const showChartTooltip = useCallback((item: ChartItem, x: number, y: number) => {
     const horizontalOffset = 2;
@@ -613,36 +632,102 @@ export default function ExpenseDashboard({
     setChartTooltip(null);
   }, []);
 
-  const rememberDraft = () => {
+  const rememberDraft = useCallback(() => {
     setLastDraft((snapshot) => snapshot ?? structuredClone(data));
-  };
+  }, [data]);
+
+  const resetReferenceDraft = useCallback(
+    (nextValue: number) => {
+      setReferenceTotalDraft(formatWithThousandDots(String(nextValue)));
+    },
+    []
+  );
+
+  const applyReferenceTotalDraft = useCallback(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    const parsedValue = parseFormattedInteger(referenceTotalDraft);
+    const nextReferenceTotal = Number.isFinite(parsedValue) ? Math.max(0, parsedValue) : 0;
+
+    if (nextReferenceTotal === data.referenceTotal) {
+      setIsReferenceEditing(false);
+      resetReferenceDraft(data.referenceTotal);
+      return;
+    }
+
+    clearFeedback();
+    rememberDraft();
+    setData((current) => ({
+      ...current,
+      referenceTotal: nextReferenceTotal,
+    }));
+    setIsReferenceEditing(false);
+    resetReferenceDraft(nextReferenceTotal);
+    setFeedback({
+      type: "info",
+      text: "Referensi awal diperbarui di draft lokal. Klik Simpan Perubahan untuk menyimpan ke database.",
+    });
+  }, [
+    clearFeedback,
+    data.referenceTotal,
+    isAdmin,
+    referenceTotalDraft,
+    rememberDraft,
+    resetReferenceDraft,
+  ]);
+
+  const startReferenceTotalEdit = useCallback(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    clearFeedback();
+    setIsReferenceEditing(true);
+    resetReferenceDraft(data.referenceTotal);
+  }, [clearFeedback, data.referenceTotal, isAdmin, resetReferenceDraft]);
+
+  const cancelReferenceTotalEdit = useCallback(() => {
+    setIsReferenceEditing(false);
+    resetReferenceDraft(data.referenceTotal);
+  }, [data.referenceTotal, resetReferenceDraft]);
 
   const undoDraft = () => {
     if (lastDraft) {
       setData(lastDraft);
     }
 
+    setIsReferenceEditing(false);
+    resetReferenceDraft(lastDraft?.referenceTotal ?? data.referenceTotal);
     setEditingItemId(null);
     setItemEditorDraft(null);
     setItemEditorErrors({});
+    setDeleteItemDialog(null);
     setLastDraft(null);
     setFeedback({ type: "info", text: "Perubahan dibatalkan." });
   };
 
   const openItemEditor = (item: ExpenseItem) => {
+    setItemEditorMode("edit");
     setEditingItemId(item.id);
     setItemEditorDraft(createItemEditorDraft(item));
     setItemEditorErrors({});
   };
 
   const closeItemEditor = useCallback(() => {
+    setItemEditorMode("edit");
     setEditingItemId(null);
     setItemEditorDraft(null);
     setItemEditorErrors({});
   }, []);
 
+  const closeDeleteItemDialog = useCallback(() => {
+    setDeleteItemDialog(null);
+  }, []);
+
   const saveItemEditor = () => {
-    if (!editingItemId || !itemEditorDraft) {
+    if (!itemEditorDraft) {
       return;
     }
 
@@ -655,6 +740,34 @@ export default function ExpenseDashboard({
     const nextTitle = itemEditorDraft.title.trim();
     const nextUnitCost = updateNumericValue(String(parseFormattedInteger(itemEditorDraft.unitCost)), 0);
     const nextQuantity = updateNumericValue(itemEditorDraft.quantity, 0);
+
+    if (itemEditorMode === "create") {
+      clearFeedback();
+      rememberDraft();
+      const newItem: ExpenseItem = {
+        id: globalThis.crypto.randomUUID(),
+        title: nextTitle,
+        unitCost: nextUnitCost,
+        quantity: nextQuantity,
+        note: itemEditorDraft.note,
+        paid: itemEditorDraft.paid,
+      };
+
+      setData((current) => ({
+        ...current,
+        items: [...current.items, newItem],
+      }));
+      closeItemEditor();
+      setFeedback({
+        type: "info",
+        text: "Item baru ditambahkan di draft lokal. Klik Simpan Perubahan untuk permanen.",
+      });
+      return;
+    }
+
+    if (!editingItemId) {
+      return;
+    }
 
     clearFeedback();
     rememberDraft();
@@ -682,11 +795,10 @@ export default function ExpenseDashboard({
 
   const addItem = () => {
     clearFeedback();
-    rememberDraft();
-    setData((current) => ({
-      ...current,
-      items: [...current.items, createItem()],
-    }));
+    setItemEditorMode("create");
+    setEditingItemId(null);
+    setItemEditorDraft(createNewItemEditorDraft());
+    setItemEditorErrors({});
   };
 
   const duplicateItem = (itemId: string) => {
@@ -711,28 +823,63 @@ export default function ExpenseDashboard({
     });
   };
 
-  const removeItem = (itemId: string) => {
+  const openDeleteItemDialog = (item: ExpenseItem) => {
+    setDeleteItemDialog({
+      id: item.id,
+      title: item.title,
+    });
+  };
+
+  const removeItem = useCallback(() => {
+    if (!deleteItemDialog) {
+      return;
+    }
+
+    const targetItemId = deleteItemDialog.id;
+    const targetItemTitle = deleteItemDialog.title;
+
     clearFeedback();
     rememberDraft();
     setData((current) => ({
       ...current,
-      items: current.items.filter((item) => item.id !== itemId),
+      items: current.items.filter((item) => item.id !== targetItemId),
     }));
 
-    if (highlightedId === itemId) {
+    if (highlightedId === targetItemId) {
       setHighlightedId(null);
     }
 
-    if (editingItemId === itemId) {
+    if (editingItemId === targetItemId) {
       closeItemEditor();
     }
-  };
+
+    setDeleteItemDialog(null);
+    setFeedback({
+      type: "info",
+      text: `Item "${targetItemTitle}" dihapus di draft lokal. Klik Simpan Perubahan untuk permanen.`,
+    });
+  }, [
+    clearFeedback,
+    closeItemEditor,
+    deleteItemDialog,
+    editingItemId,
+    highlightedId,
+    rememberDraft,
+  ]);
 
   const saveData = useCallback(() => {
     if (!isAdmin) {
       setFeedback({
         type: "error",
         text: "Akses admin diperlukan untuk menyimpan perubahan.",
+      });
+      return;
+    }
+
+    if (isReferenceEditing) {
+      setFeedback({
+        type: "error",
+        text: "Klik Terapkan pada Referensi Awal terlebih dahulu sebelum menyimpan.",
       });
       return;
     }
@@ -785,7 +932,15 @@ export default function ExpenseDashboard({
         }
       })();
     });
-  }, [closeItemEditor, data, isAdmin, startTransition]);
+  }, [closeItemEditor, data, isAdmin, isReferenceEditing, startTransition]);
+
+  useEffect(() => {
+    if (isReferenceEditing) {
+      return;
+    }
+
+    resetReferenceDraft(data.referenceTotal);
+  }, [data.referenceTotal, isReferenceEditing, resetReferenceDraft]);
 
   useEffect(() => {
     if (lastDraft) {
@@ -874,7 +1029,7 @@ export default function ExpenseDashboard({
   }, [isAdmin, saveData]);
 
   useEffect(() => {
-    if (!editingItemId) {
+    if (!isAnyEditorDialogOpen) {
       return;
     }
 
@@ -882,13 +1037,15 @@ export default function ExpenseDashboard({
     const previousOverflow = document.body.style.overflow;
     document.body.classList.add(bodyClassName);
     document.body.style.overflow = "hidden";
-    itemEditorTitleRef.current?.focus();
 
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setEditingItemId(null);
-        setItemEditorDraft(null);
-        setItemEditorErrors({});
+        if (isDeleteItemDialogOpen) {
+          closeDeleteItemDialog();
+          return;
+        }
+
+        closeItemEditor();
       }
     };
 
@@ -898,7 +1055,18 @@ export default function ExpenseDashboard({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onEscape);
     };
-  }, [editingItemId]);
+  }, [closeDeleteItemDialog, closeItemEditor, isAnyEditorDialogOpen, isDeleteItemDialogOpen]);
+
+  useEffect(() => {
+    if (isDeleteItemDialogOpen) {
+      deleteItemConfirmRef.current?.focus();
+      return;
+    }
+
+    if (isItemEditorOpen) {
+      itemEditorTitleRef.current?.focus();
+    }
+  }, [isDeleteItemDialogOpen, isItemEditorOpen]);
 
   const summaryRate =
     data.referenceTotal === 0 ? 0 : Math.round((calculatedTotal / data.referenceTotal) * 100);
@@ -941,9 +1109,59 @@ export default function ExpenseDashboard({
             <p className="stat-value">{formatRupiah(calculatedTotal)}</p>
             <p className="stat-note">Rekap otomatis seluruh kebutuhan lamaran.</p>
           </article>
-          <article className="stat-card stat-fancy">
-            <p className="stat-label">Referensi Awal</p>
-            <p className="stat-value">{formatRupiah(data.referenceTotal)}</p>
+          <article className="stat-card stat-fancy stat-reference-card">
+            <div className="stat-reference-head">
+              <p className="stat-label">Referensi Awal</p>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="stat-reference-edit-button"
+                  onClick={startReferenceTotalEdit}
+                  aria-label="Edit referensi awal"
+                  title="Edit referensi awal"
+                >
+                  <MdEdit aria-hidden />
+                </button>
+              )}
+            </div>
+            {isReferenceEditing ? (
+              <div className="stat-reference-edit-wrap">
+                <label className="stat-reference-input-wrap">
+                  <span className="stat-reference-prefix">Rp</span>
+                  <input
+                    className="stat-reference-input"
+                    inputMode="numeric"
+                    autoFocus
+                    placeholder="0"
+                    value={referenceTotalDraft}
+                    onChange={(event) => {
+                      setReferenceTotalDraft(formatWithThousandDots(event.target.value));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        applyReferenceTotalDraft();
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelReferenceTotalEdit();
+                      }
+                    }}
+                  />
+                </label>
+                <div className="stat-reference-actions">
+                  <button type="button" className="button button-ghost" onClick={cancelReferenceTotalEdit}>
+                    Batal
+                  </button>
+                  <button type="button" className="button button-primary" onClick={applyReferenceTotalDraft}>
+                    Terapkan
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="stat-value">{formatRupiah(data.referenceTotal)}</p>
+            )}
             <p className="stat-note">Target acuan dari catatan awal Rencana.</p>
           </article>
           <article className="stat-card stat-fancy">
@@ -1199,7 +1417,7 @@ export default function ExpenseDashboard({
                             <button
                               className="button button-danger"
                               type="button"
-                              onClick={() => removeItem(item.id)}
+                              onClick={() => openDeleteItemDialog(item)}
                             >
                               Hapus
                             </button>
@@ -1245,7 +1463,50 @@ export default function ExpenseDashboard({
         </section>
       </main>
 
-      {isAdmin && editingItemId && itemEditorDraft && (
+      {isAdmin && deleteItemDialog && (
+        <div
+          className="item-editor-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeDeleteItemDialog();
+            }
+          }}
+        >
+          <section
+            className="item-editor-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-item-title"
+            aria-describedby="delete-item-description"
+          >
+            <div className="item-editor-head">
+              <h3 id="delete-item-title">Konfirmasi Hapus Item</h3>
+            </div>
+
+            <p id="delete-item-description" className="delete-item-copy">
+              Apakah Anda yakin akan menghapus item ini?
+            </p>
+            <p className="delete-item-name">{deleteItemDialog.title}</p>
+
+            <div className="item-editor-actions">
+              <button className="button button-ghost" type="button" onClick={closeDeleteItemDialog}>
+                Batalkan
+              </button>
+              <button
+                ref={deleteItemConfirmRef}
+                className="button button-danger"
+                type="button"
+                onClick={removeItem}
+              >
+                Hapus
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isAdmin && itemEditorDraft && (
         <div
           className="item-editor-backdrop"
           role="presentation"
@@ -1262,7 +1523,7 @@ export default function ExpenseDashboard({
             aria-labelledby="item-editor-title"
           >
             <div className="item-editor-head">
-              <h3 id="item-editor-title">Edit Item</h3>
+              <h3 id="item-editor-title">{itemEditorMode === "create" ? "Tambah Item" : "Edit Item"}</h3>
               <button
                 className="button button-ghost item-editor-close"
                 type="button"
@@ -1365,7 +1626,7 @@ export default function ExpenseDashboard({
                 Batal
               </button>
               <button className="button button-primary" type="button" onClick={saveItemEditor}>
-                Simpan Item
+                {itemEditorMode === "create" ? "Tambah Item" : "Simpan Item"}
               </button>
             </div>
           </section>

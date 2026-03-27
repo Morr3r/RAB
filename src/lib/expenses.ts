@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { getDbPool } from "@/lib/db";
 import { ensureUsersSchemaReady } from "@/lib/users";
@@ -60,6 +61,10 @@ type DatabaseClient = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 type NewExpenseHistoryEntry = Omit<ExpenseHistoryEntry, "id" | "changedAt">;
 
 const MAX_HISTORY_DETAILS = 12;
+const HISTORY_ENCRYPTION_PREFIX = "enc:v1";
+const HISTORY_ENCRYPTION_ALGORITHM = "aes-256-gcm";
+const HISTORY_ENCRYPTION_IV_BYTES = 12;
+const HISTORY_ENCRYPTION_AUTH_TAG_BYTES = 16;
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -88,6 +93,82 @@ function toPositiveInteger(value: unknown, fallback = 0) {
 
 function formatRupiah(value: number) {
   return idrFormatter.format(value);
+}
+
+function getHistoryEncryptionSecret() {
+  const explicitSecret = process.env.EXPENSE_HISTORY_ENCRYPTION_KEY?.trim();
+  if (explicitSecret) {
+    return explicitSecret;
+  }
+
+  const authSecret = process.env.AUTH_SECRET?.trim();
+  if (authSecret && authSecret !== "engagement-local-secret") {
+    return authSecret;
+  }
+
+  return null;
+}
+
+function getHistoryEncryptionKey() {
+  const secret = getHistoryEncryptionSecret();
+  if (!secret) {
+    return null;
+  }
+
+  return crypto.createHash("sha256").update(secret, "utf8").digest();
+}
+
+function encryptHistoryDetail(detail: string) {
+  const key = getHistoryEncryptionKey();
+  if (!key) {
+    return detail;
+  }
+
+  const iv = crypto.randomBytes(HISTORY_ENCRYPTION_IV_BYTES);
+  const cipher = crypto.createCipheriv(HISTORY_ENCRYPTION_ALGORITHM, key, iv);
+  const ciphertext = Buffer.concat([cipher.update(detail, "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return [
+    HISTORY_ENCRYPTION_PREFIX,
+    iv.toString("base64url"),
+    authTag.toString("base64url"),
+    ciphertext.toString("base64url"),
+  ].join(".");
+}
+
+function decryptHistoryDetail(detail: string) {
+  const prefix = `${HISTORY_ENCRYPTION_PREFIX}.`;
+  if (!detail.startsWith(prefix)) {
+    return detail;
+  }
+
+  const tokenParts = detail.split(".");
+  if (tokenParts.length !== 4 || tokenParts[0] !== HISTORY_ENCRYPTION_PREFIX) {
+    return detail;
+  }
+
+  const key = getHistoryEncryptionKey();
+  if (!key) {
+    return detail;
+  }
+
+  try {
+    const iv = Buffer.from(tokenParts[1], "base64url");
+    const authTag = Buffer.from(tokenParts[2], "base64url");
+    const ciphertext = Buffer.from(tokenParts[3], "base64url");
+
+    if (iv.length !== HISTORY_ENCRYPTION_IV_BYTES || authTag.length !== HISTORY_ENCRYPTION_AUTH_TAG_BYTES) {
+      return detail;
+    }
+
+    const decipher = crypto.createDecipheriv(HISTORY_ENCRYPTION_ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+  } catch {
+    return detail;
+  }
 }
 
 function sanitizeItem(item: Partial<ExpenseItem> | undefined, index: number): ExpenseItem {
@@ -127,21 +208,21 @@ function parseDatabaseItems(rawItems: unknown): Partial<ExpenseItem>[] | undefin
 }
 
 function parseHistoryDetails(rawDetails: unknown) {
-  if (Array.isArray(rawDetails)) {
-    return rawDetails
-      .filter((value): value is string => typeof value === "string")
+  const normalizePlainDetails = (details: string[]) =>
+    details
       .map((value) => value.trim())
-      .filter((value) => value.length > 0);
+      .filter((value) => value.length > 0)
+      .map((value) => decryptHistoryDetail(value));
+
+  if (Array.isArray(rawDetails)) {
+    return normalizePlainDetails(rawDetails.filter((value): value is string => typeof value === "string"));
   }
 
   if (typeof rawDetails === "string") {
     try {
       const parsed = JSON.parse(rawDetails) as unknown;
       if (Array.isArray(parsed)) {
-        return parsed
-          .filter((value): value is string => typeof value === "string")
-          .map((value) => value.trim())
-          .filter((value) => value.length > 0);
+        return normalizePlainDetails(parsed.filter((value): value is string => typeof value === "string"));
       }
     } catch {
       return [];
@@ -416,12 +497,14 @@ async function insertExpenseHistory(
   userId: number,
   entry: NewExpenseHistoryEntry
 ) {
+  const encryptedDetails = entry.details.map((detail) => encryptHistoryDetail(detail));
+
   await client.query(
     `
       INSERT INTO user_expense_history (user_id, page_key, page_label, actor, summary, details)
       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
     `,
-    [userId, entry.page, entry.pageLabel, entry.actor, entry.summary, JSON.stringify(entry.details)]
+    [userId, entry.page, entry.pageLabel, entry.actor, entry.summary, JSON.stringify(encryptedDetails)]
   );
 }
 

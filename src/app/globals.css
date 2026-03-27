@@ -2646,6 +2646,23 @@ a {
   gap: 0.46rem;
 }
 
+.delete-item-copy {
+  margin: 0;
+  color: #f2e8ff;
+  line-height: 1.5;
+}
+
+.delete-item-name {
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 140, 180, 0.38);
+  background: rgba(255, 92, 146, 0.12);
+  padding: 0.52rem 0.66rem;
+  color: #ffd6e8;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .input,
 .textarea,
 .number-input,
@@ -2793,6 +2810,105 @@ select.input option {
   font-size: 0.8rem;
   line-height: 1.43;
   color: var(--text-soft);
+}
+
+.stat-reference-card {
+  z-index: 1;
+}
+
+.stat-reference-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.stat-reference-edit-button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255, 146, 186, 0.44);
+  border-radius: 9px;
+  background:
+    linear-gradient(135deg, rgba(255, 76, 141, 0.25), rgba(123, 97, 255, 0.24)),
+    rgba(16, 11, 29, 0.9);
+  color: #ffeaf4;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.stat-reference-edit-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 173, 205, 0.68);
+}
+
+.stat-reference-edit-button:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 2px;
+}
+
+.stat-reference-edit-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.stat-reference-edit-wrap {
+  margin-top: 0.34rem;
+  display: grid;
+  gap: 0.44rem;
+  position: relative;
+  z-index: 1;
+}
+
+.stat-reference-input-wrap {
+  border-radius: 11px;
+  border: 1px solid rgba(255, 143, 183, 0.34);
+  background: rgba(13, 10, 24, 0.84);
+  padding: 0.46rem 0.58rem;
+  display: flex;
+  align-items: center;
+  gap: 0.36rem;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.stat-reference-input-wrap:focus-within {
+  border-color: rgba(255, 156, 194, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 86, 139, 0.2);
+}
+
+.stat-reference-prefix {
+  font-size: 0.84rem;
+  color: #e6d8fa;
+  font-weight: 700;
+}
+
+.stat-reference-input {
+  border: 0;
+  outline: none;
+  width: 100%;
+  background: transparent;
+  color: #fff4fb;
+  font-family: var(--font-sora), sans-serif;
+  font-size: 1.04rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.stat-reference-input::placeholder {
+  color: #9c8bb9;
+}
+
+.stat-reference-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.stat-reference-actions .button {
+  padding: 0.38rem 0.66rem;
+  font-size: 0.78rem;
 }
 
 .progress-track {

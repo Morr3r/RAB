@@ -39,6 +39,14 @@ Contoh `DATABASE_URL`:
 postgresql://postgres:password@localhost:5432/engagement_db
 ```
 
+Variabel env opsional untuk enkripsi detail history:
+
+```bash
+EXPENSE_HISTORY_ENCRYPTION_KEY=isi-secret-panjang-dan-unik
+```
+
+Jika `EXPENSE_HISTORY_ENCRYPTION_KEY` tidak diisi, aplikasi akan fallback ke `AUTH_SECRET` (selama bukan default `engagement-local-secret`).
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

@@ -211,6 +211,30 @@ export function resolveAuthSession({
   viewToken?: string | null;
 }): AuthSession {
   const adminPayload = readAdminToken(adminToken);
+  const viewPayload = readViewToken(viewToken);
+
+  if (adminPayload && viewPayload) {
+    // When both cookies are present, prefer the most recently issued token.
+    // Tie-breaker is view mode to avoid accidental privilege escalation.
+    if (adminPayload.iat > viewPayload.iat) {
+      return {
+        isAdmin: true,
+        isViewOnly: false,
+        isAuthenticated: true,
+        userId: adminPayload.userId,
+        username: adminPayload.username,
+      };
+    }
+
+    return {
+      isAdmin: false,
+      isViewOnly: true,
+      isAuthenticated: true,
+      userId: viewPayload.userId,
+      username: viewPayload.username,
+    };
+  }
+
   if (adminPayload) {
     return {
       isAdmin: true,
@@ -221,7 +245,6 @@ export function resolveAuthSession({
     };
   }
 
-  const viewPayload = readViewToken(viewToken);
   if (viewPayload) {
     return {
       isAdmin: false,

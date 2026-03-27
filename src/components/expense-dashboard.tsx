@@ -1087,7 +1087,7 @@ export default function ExpenseDashboard({
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2 className="panel-title">Rincian Item Biaya Af&Zah</h2>
+              <h2 className="panel-title">Rincian Item Biaya</h2>
               <p className="panel-subtitle">
                 Cari item, ubah urutan tampilan, lalu kelola data langsung dari tabel.
               </p>

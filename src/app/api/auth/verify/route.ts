@@ -5,8 +5,9 @@ import {
   buildViewToken,
   getAdminCookieOptions,
   validateLoginPayload,
-  verifyCredential,
 } from "@/lib/auth";
+import { verifyUserCredential } from "@/lib/users";
+import { readExpenseData } from "@/lib/expenses";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +48,9 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!verifyCredential(validated.username, validated.password)) {
+  const user = await verifyUserCredential(validated.username, validated.password);
+
+  if (!user) {
     return NextResponse.json(
       {
         error: "Username atau password tidak valid.",
@@ -59,18 +62,27 @@ export async function POST(request: Request) {
     );
   }
 
+  await readExpenseData(user.id);
+
   const response = NextResponse.json(
     {
       success: true,
       mode: "view",
-      username: validated.username,
+      username: user.username,
     },
     {
       headers: NO_STORE_HEADERS,
     }
   );
 
-  response.cookies.set(VIEW_COOKIE_NAME, buildViewToken(), getAdminCookieOptions());
+  response.cookies.set(
+    VIEW_COOKIE_NAME,
+    buildViewToken({
+      userId: user.id,
+      username: user.username,
+    }),
+    getAdminCookieOptions()
+  );
   response.cookies.set(ADMIN_COOKIE_NAME, "", {
     ...getAdminCookieOptions(),
     maxAge: 0,

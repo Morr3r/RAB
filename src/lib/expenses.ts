@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { getDbPool } from "@/lib/db";
+import { ensureUsersSchemaReady } from "@/lib/users";
 
 export type ExpenseItem = {
   id: string;
@@ -59,8 +60,6 @@ type DatabaseClient = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 type NewExpenseHistoryEntry = Omit<ExpenseHistoryEntry, "id" | "changedAt">;
 
 const MAX_HISTORY_DETAILS = 12;
-const HISTORY_BOOTSTRAP_ACTOR = "system";
-const HISTORY_BOOTSTRAP_SUMMARY = "Tracking history diaktifkan.";
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -69,67 +68,10 @@ const idrFormatter = new Intl.NumberFormat("id-ID", {
 });
 
 const defaultData: ExpenseData = {
-  eventName: "Rincian Biaya Lamaran Af&Zah",
-  referenceTotal: 18000000,
+  eventName: "Rincian Biaya Lamaran",
+  referenceTotal: 0,
   updatedAt: new Date().toISOString(),
-  items: [
-    {
-      id: "bensin",
-      title: "Bensin",
-      unitCost: 800000,
-      quantity: 2,
-      note: "Avanza (PP)",
-      paid: false,
-    },
-    {
-      id: "tol",
-      title: "Tol",
-      unitCost: 900000,
-      quantity: 2,
-      note: "Estimasi pulang-pergi",
-      paid: false,
-    },
-    {
-      id: "makan-berat",
-      title: "Makan Berat (1 Orang)",
-      unitCost: 100000,
-      quantity: 10,
-      note: "10 x 100.000",
-      paid: false,
-    },
-    {
-      id: "oleh-oleh",
-      title: "Oleh-oleh (Bandung)",
-      unitCost: 1000000,
-      quantity: 1,
-      note: "Kurang lebih",
-      paid: false,
-    },
-    {
-      id: "penginapan",
-      title: "Penginapan",
-      unitCost: 200000,
-      quantity: 12,
-      note: "4 kamar x 3 malam (Jumat, Sabtu, Minggu)",
-      paid: false,
-    },
-    {
-      id: "cincin",
-      title: "Cincin (Tunangan)",
-      unitCost: 3500000,
-      quantity: 1,
-      note: "",
-      paid: false,
-    },
-    {
-      id: "dana-darurat",
-      title: "Dana Darurat",
-      unitCost: 3000000,
-      quantity: 1,
-      note: "",
-      paid: false,
-    },
-  ],
+  items: [],
 };
 
 let schemaEnsured = false;
@@ -421,9 +363,11 @@ async function ensureExpenseSchema(client: DatabaseClient) {
     return;
   }
 
+  await ensureUsersSchemaReady();
+
   await client.query(`
-    CREATE TABLE IF NOT EXISTS expense_data (
-      id SMALLINT PRIMARY KEY CHECK (id = 1),
+    CREATE TABLE IF NOT EXISTS user_expense_data (
+      user_id BIGINT PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
       event_name TEXT NOT NULL,
       reference_total INTEGER NOT NULL CHECK (reference_total >= 0),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -432,8 +376,9 @@ async function ensureExpenseSchema(client: DatabaseClient) {
   `);
 
   await client.query(`
-    CREATE TABLE IF NOT EXISTS expense_history (
+    CREATE TABLE IF NOT EXISTS user_expense_history (
       id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
       changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       page_key TEXT NOT NULL,
       page_label TEXT NOT NULL,
@@ -444,55 +389,51 @@ async function ensureExpenseSchema(client: DatabaseClient) {
   `);
 
   await client.query(`
-    CREATE INDEX IF NOT EXISTS expense_history_changed_at_idx
-    ON expense_history (changed_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS user_expense_history_user_changed_at_idx
+    ON user_expense_history (user_id, changed_at DESC, id DESC);
   `);
-
-  await client.query(
-    `
-      DELETE FROM expense_history
-      WHERE actor = $1
-        AND summary = $2
-    `,
-    [HISTORY_BOOTSTRAP_ACTOR, HISTORY_BOOTSTRAP_SUMMARY]
-  );
 
   schemaEnsured = true;
 }
 
-async function upsertExpenseData(client: DatabaseClient, data: ExpenseData) {
+async function upsertExpenseData(client: DatabaseClient, userId: number, data: ExpenseData) {
   await client.query(
     `
-      INSERT INTO expense_data (id, event_name, reference_total, updated_at, items)
-      VALUES (1, $1, $2, $3, $4::jsonb)
-      ON CONFLICT (id) DO UPDATE
+      INSERT INTO user_expense_data (user_id, event_name, reference_total, updated_at, items)
+      VALUES ($1, $2, $3, $4, $5::jsonb)
+      ON CONFLICT (user_id) DO UPDATE
       SET event_name = EXCLUDED.event_name,
           reference_total = EXCLUDED.reference_total,
           updated_at = EXCLUDED.updated_at,
           items = EXCLUDED.items
     `,
-    [data.eventName, data.referenceTotal, data.updatedAt, JSON.stringify(data.items)]
+    [userId, data.eventName, data.referenceTotal, data.updatedAt, JSON.stringify(data.items)]
   );
 }
 
-async function insertExpenseHistory(client: DatabaseClient, entry: NewExpenseHistoryEntry) {
+async function insertExpenseHistory(
+  client: DatabaseClient,
+  userId: number,
+  entry: NewExpenseHistoryEntry
+) {
   await client.query(
     `
-      INSERT INTO expense_history (page_key, page_label, actor, summary, details)
-      VALUES ($1, $2, $3, $4, $5::jsonb)
+      INSERT INTO user_expense_history (user_id, page_key, page_label, actor, summary, details)
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb)
     `,
-    [entry.page, entry.pageLabel, entry.actor, entry.summary, JSON.stringify(entry.details)]
+    [userId, entry.page, entry.pageLabel, entry.actor, entry.summary, JSON.stringify(entry.details)]
   );
 }
 
-async function getCurrentExpenseData(client: DatabaseClient) {
+async function getCurrentExpenseData(client: DatabaseClient, userId: number) {
   const result = await client.query<ExpenseRow>(
     `
       SELECT event_name, reference_total, updated_at, items
-      FROM expense_data
-      WHERE id = 1
+      FROM user_expense_data
+      WHERE user_id = $1
       LIMIT 1
-    `
+    `,
+    [userId]
   );
 
   if (result.rows.length === 0) {
@@ -502,26 +443,31 @@ async function getCurrentExpenseData(client: DatabaseClient) {
   return mapRowToExpenseData(result.rows[0]);
 }
 
-export async function readExpenseData() {
+export function createEmptyExpenseData() {
+  return sanitizeExpenseData({
+    ...defaultData,
+    items: [],
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function readExpenseData(userId: number) {
   const pool = getDbPool();
   await ensureExpenseSchema(pool);
 
-  const existingData = await getCurrentExpenseData(pool);
+  const existingData = await getCurrentExpenseData(pool, userId);
   if (existingData) {
     return existingData;
   }
 
-  const seededData = sanitizeExpenseData({
-    ...defaultData,
-    items: defaultData.items.map((item) => ({ ...item })),
-    updatedAt: new Date().toISOString(),
-  });
+  const seededData = createEmptyExpenseData();
 
-  await upsertExpenseData(pool, seededData);
+  await upsertExpenseData(pool, userId, seededData);
   return seededData;
 }
 
 export async function writeExpenseData(
+  userId: number,
   payload: Partial<ExpenseData>,
   context: ExpenseChangeContext = {}
 ) {
@@ -532,12 +478,8 @@ export async function writeExpenseData(
   try {
     await client.query("BEGIN");
 
-    const fallbackCurrentData = sanitizeExpenseData({
-      ...defaultData,
-      items: defaultData.items.map((item) => ({ ...item })),
-      updatedAt: new Date().toISOString(),
-    });
-    const currentData = (await getCurrentExpenseData(client)) ?? fallbackCurrentData;
+    const fallbackCurrentData = createEmptyExpenseData();
+    const currentData = (await getCurrentExpenseData(client, userId)) ?? fallbackCurrentData;
     const nextData = sanitizeExpenseData({
       eventName: payload.eventName ?? currentData.eventName,
       referenceTotal: payload.referenceTotal ?? currentData.referenceTotal,
@@ -545,10 +487,10 @@ export async function writeExpenseData(
       updatedAt: new Date().toISOString(),
     });
 
-    await upsertExpenseData(client, nextData);
+    await upsertExpenseData(client, userId, nextData);
     const historyEntry = detectExpenseChanges(currentData, nextData, context);
     if (historyEntry) {
-      await insertExpenseHistory(client, historyEntry);
+      await insertExpenseHistory(client, userId, historyEntry);
     }
 
     await client.query("COMMIT");
@@ -561,10 +503,10 @@ export async function writeExpenseData(
   }
 }
 
-export async function readExpenseHistory(limit = 40) {
+export async function readExpenseHistory(userId: number, limit = 40) {
   const pool = getDbPool();
   await ensureExpenseSchema(pool);
-  await readExpenseData();
+  await readExpenseData(userId);
 
   const normalizedLimit = Number.isFinite(limit)
     ? Math.max(1, Math.min(120, Math.floor(limit)))
@@ -572,12 +514,12 @@ export async function readExpenseHistory(limit = 40) {
   const result = await pool.query<ExpenseHistoryRow>(
     `
       SELECT id, changed_at, page_key, page_label, actor, summary, details
-      FROM expense_history
-      WHERE NOT (actor = $2 AND summary = $3)
+      FROM user_expense_history
+      WHERE user_id = $1
       ORDER BY changed_at DESC, id DESC
-      LIMIT $1
+      LIMIT $2
     `,
-    [normalizedLimit, HISTORY_BOOTSTRAP_ACTOR, HISTORY_BOOTSTRAP_SUMMARY]
+    [userId, normalizedLimit]
   );
 
   return result.rows.map((row) => mapRowToExpenseHistory(row));

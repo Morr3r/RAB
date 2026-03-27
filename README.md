@@ -31,6 +31,8 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 npm run dev
 ```
 
+6. Buka `http://localhost:3000`, lalu buat akun dari tab **Registrasi** di halaman login awal.
+
 Contoh `DATABASE_URL`:
 
 ```bash

@@ -1,63 +1,6 @@
 {
-  "eventName": "Rincian Biaya Lamaran Af&Zah",
-  "referenceTotal": 20000000,
-  "updatedAt": "2026-03-23T15:43:03.988Z",
-  "items": [
-    {
-      "id": "bensin",
-      "title": "Bensin",
-      "unitCost": 900000,
-      "quantity": 1,
-      "note": "Avanza (PP)",
-      "paid": false
-    },
-    {
-      "id": "tol",
-      "title": "Tol",
-      "unitCost": 900000,
-      "quantity": 2,
-      "note": "Estimasi pulang-pergi",
-      "paid": false
-    },
-    {
-      "id": "makan-berat",
-      "title": "Makan Berat (1 Orang)",
-      "unitCost": 100000,
-      "quantity": 10,
-      "note": "10 x 100.000",
-      "paid": false
-    },
-    {
-      "id": "oleh-oleh",
-      "title": "Oleh-oleh (Bandung)",
-      "unitCost": 1000000,
-      "quantity": 1,
-      "note": "Kurang lebih",
-      "paid": false
-    },
-    {
-      "id": "penginapan",
-      "title": "Penginapan",
-      "unitCost": 200000,
-      "quantity": 12,
-      "note": "4 kamar x 3 malam (Jumat, Sabtu, Minggu)",
-      "paid": false
-    },
-    {
-      "id": "cincin",
-      "title": "Cincin (Tunangan)",
-      "unitCost": 3500000,
-      "quantity": 1,
-      "note": "",
-      "paid": false
-    },
-    {
-      "id": "dana-darurat",
-      "title": "Dana Darurat",
-      "unitCost": 3000000,
-      "quantity": 1,
-      "note": "",
-      "paid": false
-    }
-  ]
+  "eventName": "Rincian Biaya Lamaran",
+  "referenceTotal": 0,
+  "updatedAt": "2026-03-27T00:00:00.000Z",
+  "items": []
 }

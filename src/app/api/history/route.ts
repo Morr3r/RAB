@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { ADMIN_COOKIE_NAME, VIEW_COOKIE_NAME, resolveAuthSession } from "@/lib/auth";
 import { readExpenseHistory } from "@/lib/expenses";
 
 export const runtime = "nodejs";
@@ -29,8 +31,26 @@ function parseHistoryLimit(requestUrl: string) {
 }
 
 export async function GET(request: Request) {
+  const cookieStore = await cookies();
+  const session = resolveAuthSession({
+    adminToken: cookieStore.get(ADMIN_COOKIE_NAME)?.value,
+    viewToken: cookieStore.get(VIEW_COOKIE_NAME)?.value,
+  });
+
+  if (!session.isAuthenticated || session.userId === null) {
+    return NextResponse.json(
+      {
+        error: "Silakan login terlebih dahulu.",
+      },
+      {
+        status: 401,
+        headers: NO_STORE_HEADERS,
+      }
+    );
+  }
+
   try {
-    const data = await readExpenseHistory(parseHistoryLimit(request.url));
+    const data = await readExpenseHistory(session.userId, parseHistoryLimit(request.url));
 
     return NextResponse.json(
       { data },

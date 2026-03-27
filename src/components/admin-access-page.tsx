@@ -28,7 +28,6 @@ const LOGIN_USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 const LOGIN_USERNAME_MIN_LENGTH = 3;
 const LOGIN_USERNAME_MAX_LENGTH = 32;
 const LOGIN_PASSWORD_MIN_LENGTH = 8;
-const LOGIN_PASSWORD_MAX_LENGTH = 128;
 
 function validateLoginFields(usernameRaw: string, passwordRaw: string): LoginFieldErrors {
   const username = usernameRaw.trim();
@@ -48,11 +47,8 @@ function validateLoginFields(usernameRaw: string, passwordRaw: string): LoginFie
 
   if (!password) {
     fieldErrors.password = "Password wajib diisi.";
-  } else if (
-    password.length < LOGIN_PASSWORD_MIN_LENGTH ||
-    password.length > LOGIN_PASSWORD_MAX_LENGTH
-  ) {
-    fieldErrors.password = `Password harus ${LOGIN_PASSWORD_MIN_LENGTH}-${LOGIN_PASSWORD_MAX_LENGTH} karakter.`;
+  } else if (password.length < LOGIN_PASSWORD_MIN_LENGTH) {
+    fieldErrors.password = `Password minimal ${LOGIN_PASSWORD_MIN_LENGTH} karakter.`;
   }
 
   return fieldErrors;
@@ -190,7 +186,6 @@ export default function AdminAccessPage({ initialAdminUsername }: AdminAccessPag
                 autoComplete="current-password"
                 value={password}
                 minLength={LOGIN_PASSWORD_MIN_LENGTH}
-                maxLength={LOGIN_PASSWORD_MAX_LENGTH}
                 aria-invalid={Boolean(loginErrors.password)}
                 aria-describedby={loginErrors.password ? "admin-password-error" : undefined}
                 onChange={(event) => {

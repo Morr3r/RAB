@@ -34,6 +34,61 @@ html {
   overflow-x: hidden;
 }
 
+.romantic-loader.is-scrollable,
+.romantic-loader-country-menu,
+.app-sidebar-nav,
+.table-wrap,
+.item-editor-modal {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 123, 176, 0.78) rgba(14, 10, 24, 0.72);
+}
+
+.romantic-loader.is-scrollable::-webkit-scrollbar,
+.romantic-loader-country-menu::-webkit-scrollbar,
+.app-sidebar-nav::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar,
+.item-editor-modal::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.romantic-loader.is-scrollable::-webkit-scrollbar-track,
+.romantic-loader-country-menu::-webkit-scrollbar-track,
+.app-sidebar-nav::-webkit-scrollbar-track,
+.table-wrap::-webkit-scrollbar-track,
+.item-editor-modal::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(14, 10, 24, 0.72);
+}
+
+.romantic-loader.is-scrollable::-webkit-scrollbar-thumb,
+.romantic-loader-country-menu::-webkit-scrollbar-thumb,
+.app-sidebar-nav::-webkit-scrollbar-thumb,
+.table-wrap::-webkit-scrollbar-thumb,
+.item-editor-modal::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid rgba(14, 10, 24, 0.78);
+  background: linear-gradient(180deg, rgba(255, 120, 173, 0.92), rgba(123, 97, 255, 0.9));
+}
+
+.romantic-loader.is-scrollable::-webkit-scrollbar-thumb:hover,
+.romantic-loader-country-menu::-webkit-scrollbar-thumb:hover,
+.app-sidebar-nav::-webkit-scrollbar-thumb:hover,
+.table-wrap::-webkit-scrollbar-thumb:hover,
+.item-editor-modal::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 145, 190, 0.96), rgba(145, 122, 255, 0.94));
+}
+
+.romantic-loader.is-scrollable::-webkit-scrollbar-button,
+.romantic-loader-country-menu::-webkit-scrollbar-button,
+.app-sidebar-nav::-webkit-scrollbar-button,
+.table-wrap::-webkit-scrollbar-button,
+.item-editor-modal::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -71,6 +126,17 @@ a {
   opacity: 1;
   transform: scale(1);
   transition: opacity 520ms ease, transform 520ms ease;
+}
+
+.romantic-loader.is-scrollable {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: clamp(0.72rem, 2.4vh, 1.4rem) 0.5rem;
 }
 
 .romantic-loader::before {
@@ -164,6 +230,7 @@ a {
 .romantic-loader-card {
   --romantic-loader-duration: 3380ms;
   width: min(560px, calc(100vw - 1.8rem));
+  margin: 0 auto;
   border-radius: 26px;
   border: 1px solid rgba(255, 151, 192, 0.32);
   padding: clamp(1.2rem, 3vw, 1.8rem);
@@ -301,6 +368,13 @@ a {
   color: #ffe7f3;
 }
 
+.romantic-loader-auth-title.is-register {
+  width: 100%;
+  justify-self: center;
+  display: block;
+  text-align: center;
+}
+
 .romantic-loader-auth-copy {
   margin: 0;
   font-size: 0.78rem;
@@ -308,9 +382,940 @@ a {
   line-height: 1.45;
 }
 
+.romantic-loader-auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+
+.romantic-loader-auth-tab {
+  border-radius: 10px;
+  border: 1px solid rgba(188, 148, 255, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8dcf9;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.42rem 0.52rem;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-auth-tab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 158, 194, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.romantic-loader-auth-tab.is-active {
+  border-color: rgba(255, 128, 171, 0.72);
+  background: linear-gradient(132deg, rgba(255, 78, 140, 0.26), rgba(123, 97, 255, 0.26));
+  color: #fff2f9;
+}
+
 .romantic-loader-auth-form {
   display: grid;
+  gap: 0.58rem;
+}
+
+.romantic-loader-register-grid {
+  display: grid;
   gap: 0.52rem;
+}
+
+.romantic-loader-auth-inline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.44rem;
+}
+
+.romantic-loader-phone-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(0, 1.1fr);
+  gap: 0.44rem;
+}
+
+.romantic-loader-country-field {
+  z-index: 22;
+}
+
+.romantic-loader-country-trigger {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid rgba(191, 152, 255, 0.3);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(255, 90, 150, 0.14), rgba(123, 97, 255, 0.2)),
+    rgba(8, 6, 16, 0.9);
+  color: #f6eeff;
+  font: inherit;
+  padding: 1.04rem 0.72rem 0.4rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.42rem;
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease,
+    transform 140ms ease;
+}
+
+.romantic-loader-country-trigger:hover:not(:disabled) {
+  border-color: rgba(255, 156, 194, 0.58);
+  transform: translateY(-1px);
+}
+
+.romantic-loader-country-trigger:focus-visible,
+.romantic-loader-country-trigger.is-open {
+  border-color: rgba(255, 148, 191, 0.74);
+  box-shadow: 0 0 0 3px rgba(255, 84, 136, 0.2), 0 14px 26px -20px rgba(255, 84, 136, 0.6);
+  background:
+    linear-gradient(145deg, rgba(255, 98, 156, 0.18), rgba(123, 97, 255, 0.24)),
+    rgba(9, 7, 18, 0.95);
+  outline: 0;
+}
+
+.romantic-loader-country-trigger:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.romantic-loader-country-trigger-flag {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.romantic-loader-country-trigger-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.romantic-loader-country-trigger-chevron {
+  font-size: 0.66rem;
+  opacity: 0.84;
+  transition: transform 140ms ease;
+}
+
+.romantic-loader-country-trigger.is-open .romantic-loader-country-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+.romantic-loader-country-menu {
+  position: absolute;
+  bottom: calc(100% + 0.36rem);
+  left: 0;
+  right: 0;
+  z-index: 32;
+  display: grid;
+  gap: 0.2rem;
+  max-height: min(230px, 42vh);
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 154, 192, 0.34);
+  background:
+    linear-gradient(145deg, rgba(255, 84, 146, 0.16), rgba(123, 97, 255, 0.2)),
+    rgba(10, 7, 19, 0.96);
+  box-shadow: 0 22px 36px -24px rgba(3, 1, 8, 0.9);
+  padding: 0.3rem;
+}
+
+.romantic-loader-country-option {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f2e9ff;
+  font: inherit;
+  font-size: 0.76rem;
+  padding: 0.42rem 0.5rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-country-option:hover {
+  border-color: rgba(255, 147, 188, 0.52);
+  background: rgba(255, 87, 147, 0.14);
+  transform: translateY(-1px);
+}
+
+.romantic-loader-country-option.is-selected {
+  border-color: rgba(255, 129, 174, 0.66);
+  background:
+    linear-gradient(130deg, rgba(255, 74, 138, 0.2), rgba(123, 97, 255, 0.22)),
+    rgba(255, 255, 255, 0.04);
+}
+
+.romantic-loader-country-option:focus-visible {
+  outline: 2px solid rgba(255, 150, 189, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-country-option-flag {
+  font-size: 0.98rem;
+}
+
+.romantic-loader-country-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.romantic-loader-country-option-check {
+  color: #ffd6eb;
+  font-size: 0.72rem;
+}
+
+.loader-date-picker {
+  width: 100%;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.romantic-loader-date-basic-field {
+  position: relative;
+  z-index: 24;
+}
+
+.loader-date-picker__label {
+  margin: 0;
+  color: #cbb8e8;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  padding-left: 0.08rem;
+}
+
+.loader-date-picker__trigger {
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 133, 172, 0.26);
+  background:
+    linear-gradient(145deg, rgba(255, 90, 150, 0.1), rgba(123, 97, 255, 0.13)),
+    rgba(12, 10, 22, 0.78);
+  padding: 0.24rem 0.34rem 0.24rem 0.56rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.32rem;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.loader-date-picker__trigger:hover {
+  border-color: rgba(255, 156, 194, 0.52);
+}
+
+.loader-date-picker__trigger:focus-within,
+.loader-date-picker__trigger[data-focus-within] {
+  border-color: rgba(255, 148, 191, 0.74);
+  box-shadow: 0 0 0 3px rgba(255, 84, 136, 0.2);
+}
+
+.loader-date-picker__input {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.04rem;
+  min-width: 0;
+}
+
+.loader-date-picker__segment {
+  color: #f6efff;
+  font-size: 0.96rem;
+  font-weight: 600;
+  line-height: 1.28;
+  padding: 0.04rem 0.08rem;
+  border-radius: 6px;
+}
+
+.loader-date-picker__segment[data-placeholder] {
+  color: #9a8cb8;
+}
+
+.loader-date-picker__segment[data-type="literal"] {
+  color: #b09fd0;
+  padding: 0;
+}
+
+.loader-date-picker__segment[data-focused] {
+  background: rgba(255, 96, 154, 0.22);
+  color: #fff5fb;
+  outline: 0;
+}
+
+.loader-date-picker__suffix {
+  display: inline-flex;
+  align-items: center;
+}
+
+.loader-date-picker__trigger-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 141, 182, 0.36);
+  background: rgba(255, 82, 142, 0.18);
+  color: #ffeef7;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.loader-date-picker__trigger-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 167, 199, 0.58);
+  background: rgba(255, 96, 154, 0.28);
+}
+
+.loader-date-picker__trigger-button:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.loader-date-picker__trigger-icon {
+  display: inline-grid;
+  place-items: center;
+}
+
+.loader-date-picker__trigger-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.loader-date-picker__popover {
+  min-width: min(320px, calc(100vw - 2rem));
+  border-radius: 14px;
+  border: 1px solid rgba(255, 154, 192, 0.34);
+  background:
+    linear-gradient(145deg, rgba(255, 84, 146, 0.16), rgba(123, 97, 255, 0.2)),
+    rgba(10, 7, 19, 0.97);
+  box-shadow: 0 24px 38px -24px rgba(3, 1, 8, 0.92);
+  padding: 0.62rem;
+  color: #f3eaff;
+}
+
+.loader-date-picker__calendar {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.loader-date-picker__calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.46rem;
+}
+
+.loader-date-picker__year-trigger {
+  min-height: 30px;
+  padding: 0.34rem 0.46rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 141, 182, 0.34);
+  background:
+    linear-gradient(130deg, rgba(255, 96, 154, 0.16), rgba(123, 97, 255, 0.2)),
+    rgba(13, 10, 24, 0.88);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #ffe9f4;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.loader-date-picker__year-trigger:hover {
+  border-color: rgba(255, 165, 200, 0.62);
+  background:
+    linear-gradient(130deg, rgba(255, 104, 161, 0.22), rgba(123, 97, 255, 0.26)),
+    rgba(13, 10, 24, 0.9);
+}
+
+.loader-date-picker__year-trigger:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.loader-date-picker__year-heading {
+  color: #ffe9f4;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.loader-date-picker__year-indicator {
+  color: #ffd4e8;
+  display: inline-grid;
+  place-items: center;
+}
+
+.loader-date-picker__year-indicator svg {
+  width: 13px;
+  height: 13px;
+}
+
+.loader-date-picker__nav {
+  display: flex;
+  gap: 0.34rem;
+}
+
+.loader-date-picker__nav-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 141, 182, 0.34);
+  background: rgba(255, 88, 147, 0.16);
+  color: #ffeef7;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.loader-date-picker__nav-button:hover {
+  border-color: rgba(255, 165, 200, 0.62);
+  background: rgba(255, 100, 156, 0.24);
+  transform: translateY(-1px);
+}
+
+.loader-date-picker__nav-button:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.loader-date-picker__nav-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.loader-date-picker__grid {
+  width: 100%;
+}
+
+.loader-date-picker__grid-header {
+  margin-bottom: 0.24rem;
+}
+
+.loader-date-picker__weekday {
+  color: #cdbde8;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.loader-date-picker__cell {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  color: #f2e9ff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.loader-date-picker__cell[data-hovered] {
+  border-color: rgba(255, 147, 188, 0.52);
+  background: rgba(255, 87, 147, 0.16);
+  transform: translateY(-1px);
+}
+
+.loader-date-picker__cell[data-selected] {
+  border-color: rgba(255, 129, 174, 0.66);
+  background:
+    linear-gradient(130deg, rgba(255, 74, 138, 0.2), rgba(123, 97, 255, 0.22)),
+    rgba(255, 255, 255, 0.04);
+  color: #fff6fb;
+  font-weight: 700;
+}
+
+.loader-date-picker__cell[data-focused] {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.loader-date-picker__cell[data-outside-month] {
+  opacity: 0.45;
+}
+
+.loader-date-picker__year-grid {
+  position: absolute;
+  top: 2.32rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(255, 84, 146, 0.16), rgba(123, 97, 255, 0.2)),
+    rgba(10, 7, 19, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(255, 150, 189, 0.16);
+  padding: 0.28rem 0.06rem 0.28rem 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.34rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 123, 176, 0.78) rgba(14, 10, 24, 0.72);
+  z-index: 3;
+}
+
+.loader-date-picker__year-grid[aria-hidden="true"] {
+  display: none;
+}
+
+.loader-date-picker__year-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.loader-date-picker__year-grid::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(14, 10, 24, 0.72);
+}
+
+.loader-date-picker__year-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 1px solid rgba(14, 10, 24, 0.78);
+  background: linear-gradient(180deg, rgba(255, 120, 173, 0.92), rgba(123, 97, 255, 0.9));
+}
+
+.loader-date-picker__year-grid::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 145, 190, 0.96), rgba(145, 122, 255, 0.94));
+}
+
+.loader-date-picker__year-cell {
+  width: 100%;
+  min-height: 34px;
+  padding: 0.34rem 0.28rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #f2e9ff;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.1;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.loader-date-picker__year-cell[data-hovered] {
+  border-color: rgba(255, 147, 188, 0.52);
+  background: rgba(255, 87, 147, 0.16);
+  transform: translateY(-1px);
+}
+
+.loader-date-picker__year-cell[data-selected] {
+  border-color: rgba(255, 129, 174, 0.66);
+  background:
+    linear-gradient(130deg, rgba(255, 74, 138, 0.2), rgba(123, 97, 255, 0.22)),
+    rgba(255, 255, 255, 0.04);
+  color: #fff6fb;
+}
+
+.loader-date-picker__year-cell[data-focused] {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-date-picker-field {
+  z-index: 24;
+}
+
+.romantic-loader-date-root {
+  width: 100%;
+}
+
+.romantic-loader-date-trigger {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid rgba(191, 152, 255, 0.3);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(255, 90, 150, 0.12), rgba(123, 97, 255, 0.16)),
+    rgba(8, 6, 16, 0.9);
+  color: #e2d3fb;
+  font: inherit;
+  padding: 1.02rem 0.72rem 0.42rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease,
+    background-color 140ms ease;
+}
+
+.romantic-loader-date-trigger:hover {
+  border-color: rgba(255, 156, 194, 0.58);
+  transform: translateY(-1px);
+}
+
+.romantic-loader-date-trigger:focus-within,
+.romantic-loader-date-trigger.is-open {
+  border-color: rgba(255, 148, 191, 0.74);
+  box-shadow: 0 0 0 3px rgba(255, 84, 136, 0.2), 0 14px 26px -20px rgba(255, 84, 136, 0.6);
+  background:
+    linear-gradient(145deg, rgba(255, 98, 156, 0.18), rgba(123, 97, 255, 0.24)),
+    rgba(9, 7, 18, 0.95);
+}
+
+.romantic-loader-date-trigger[data-disabled] {
+  opacity: 0.72;
+  transform: none;
+}
+
+.romantic-loader-date-trigger-input {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.06rem;
+  min-width: 0;
+}
+
+.romantic-loader-date-segment {
+  border-radius: 7px;
+  padding: 0.04rem 0.12rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #d8c9f3;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.romantic-loader-date-segment[data-placeholder] {
+  color: #9a8cb8;
+}
+
+.romantic-loader-date-segment[data-type="literal"] {
+  padding: 0;
+  color: #a595c2;
+}
+
+.romantic-loader-date-segment[data-focused] {
+  background: rgba(255, 96, 154, 0.2);
+  color: #fff3f9;
+  outline: 0;
+}
+
+.romantic-loader-date-trigger.is-selected .romantic-loader-date-segment:not([data-placeholder]):not(
+    [data-type="literal"]
+  ) {
+  color: #f9f0ff;
+  font-weight: 700;
+}
+
+.romantic-loader-date-trigger-suffix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.romantic-loader-date-trigger-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 141, 182, 0.36);
+  background: rgba(255, 88, 147, 0.2);
+  display: grid;
+  place-items: center;
+  color: #ffeef7;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-date-trigger-button:hover {
+  border-color: rgba(255, 167, 199, 0.58);
+  background: rgba(255, 96, 154, 0.28);
+  transform: translateY(-1px);
+}
+
+.romantic-loader-date-trigger-button:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-date-trigger-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.romantic-loader-date-picker-popover {
+  z-index: 34;
+  width: min(340px, calc(100vw - 2rem));
+  border-radius: 14px;
+  border: 1px solid rgba(255, 154, 192, 0.34);
+  background:
+    linear-gradient(145deg, rgba(255, 84, 146, 0.16), rgba(123, 97, 255, 0.2)),
+    rgba(10, 7, 19, 0.97);
+  box-shadow: 0 24px 38px -24px rgba(3, 1, 8, 0.92);
+  padding: 0.62rem;
+  display: grid;
+  gap: 0.56rem;
+}
+
+.romantic-loader-date-picker {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.romantic-loader-date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.46rem;
+}
+
+.romantic-loader-date-picker-year-trigger {
+  min-height: 30px;
+  padding: 0.34rem 0.46rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 141, 182, 0.34);
+  background:
+    linear-gradient(130deg, rgba(255, 96, 154, 0.16), rgba(123, 97, 255, 0.2)),
+    rgba(13, 10, 24, 0.88);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #ffe9f4;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-date-picker-year-trigger:hover {
+  border-color: rgba(255, 165, 200, 0.62);
+  background:
+    linear-gradient(130deg, rgba(255, 104, 161, 0.22), rgba(123, 97, 255, 0.26)),
+    rgba(13, 10, 24, 0.9);
+}
+
+.romantic-loader-date-picker-year-trigger:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-date-picker-nav {
+  display: flex;
+  gap: 0.34rem;
+}
+
+.romantic-loader-date-picker-nav-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 141, 182, 0.34);
+  background: rgba(255, 88, 147, 0.16);
+  color: #ffeef7;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-date-picker-nav-button:hover {
+  border-color: rgba(255, 165, 200, 0.62);
+  background: rgba(255, 100, 156, 0.24);
+  transform: translateY(-1px);
+}
+
+.romantic-loader-date-picker-nav-button:focus-visible {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-date-picker-nav-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.romantic-loader-date-picker-grid {
+  width: 100%;
+}
+
+.romantic-loader-date-picker-grid-header {
+  margin-bottom: 0.24rem;
+}
+
+.romantic-loader-date-picker-weekday {
+  color: #cdbde8;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.romantic-loader-date-picker-cell {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  color: #f2e9ff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-date-picker-cell[data-hovered] {
+  border-color: rgba(255, 147, 188, 0.52);
+  background: rgba(255, 87, 147, 0.16);
+  transform: translateY(-1px);
+}
+
+.romantic-loader-date-picker-cell[data-selected] {
+  border-color: rgba(255, 129, 174, 0.66);
+  background:
+    linear-gradient(130deg, rgba(255, 74, 138, 0.2), rgba(123, 97, 255, 0.22)),
+    rgba(255, 255, 255, 0.04);
+  color: #fff6fb;
+  font-weight: 700;
+}
+
+.romantic-loader-date-picker-cell[data-focused] {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-date-picker-cell[data-today] {
+  border-color: rgba(123, 97, 255, 0.54);
+  color: #ede5ff;
+}
+
+.romantic-loader-date-picker-cell[data-disabled],
+.romantic-loader-date-picker-cell[data-unavailable] {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+
+.romantic-loader-date-picker-cell[data-outside-month] {
+  opacity: 0.5;
+}
+
+.romantic-loader-date-picker-year-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  padding: 0.18rem 0.06rem 0.18rem 0;
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(255, 84, 146, 0.16), rgba(123, 97, 255, 0.2)),
+    rgba(10, 7, 19, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(255, 150, 189, 0.16);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 123, 176, 0.78) rgba(14, 10, 24, 0.72);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.34rem;
+  z-index: 2;
+}
+
+.romantic-loader-date-picker-year-grid[aria-hidden="true"] {
+  display: none;
+}
+
+.romantic-loader-date-picker-year-grid[data-open] {
+  display: grid;
+}
+
+.romantic-loader-date-picker-year-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.romantic-loader-date-picker-year-grid::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(14, 10, 24, 0.72);
+}
+
+.romantic-loader-date-picker-year-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 1px solid rgba(14, 10, 24, 0.78);
+  background: linear-gradient(180deg, rgba(255, 120, 173, 0.92), rgba(123, 97, 255, 0.9));
+}
+
+.romantic-loader-date-picker-year-grid::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 145, 190, 0.96), rgba(145, 122, 255, 0.94));
+}
+
+.romantic-loader-date-picker-year-cell {
+  width: 100%;
+  min-height: 34px;
+  padding: 0.34rem 0.28rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  color: #f2e9ff;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.1;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.romantic-loader-date-picker-year-cell[data-hovered] {
+  border-color: rgba(255, 147, 188, 0.52);
+  background: rgba(255, 87, 147, 0.16);
+  transform: translateY(-1px);
+}
+
+.romantic-loader-date-picker-year-cell[data-selected] {
+  border-color: rgba(255, 129, 174, 0.66);
+  background:
+    linear-gradient(130deg, rgba(255, 74, 138, 0.2), rgba(123, 97, 255, 0.22)),
+    rgba(255, 255, 255, 0.04);
+  color: #fff6fb;
+}
+
+.romantic-loader-date-picker-year-cell[data-focused] {
+  outline: 2px solid rgba(255, 156, 194, 0.72);
+  outline-offset: 1px;
+}
+
+.romantic-loader-date-picker-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.46rem;
+}
+
+.romantic-loader-date-picker-action {
+  min-width: 88px;
+  font-size: 0.76rem;
+  padding: 0.38rem 0.62rem;
 }
 
 .romantic-loader-password-wrap {
@@ -335,6 +1340,9 @@ a {
   font-size: 0.7rem;
   font-weight: 700;
   padding: 0.24rem 0.44rem;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
@@ -358,12 +1366,100 @@ a {
 }
 
 .romantic-loader-auth-field {
+  position: relative;
+  display: grid;
+  gap: 0.22rem;
   font-size: 0.76rem;
   color: #eedffb;
 }
 
-.romantic-loader-auth-field .input {
-  background: rgba(8, 6, 16, 0.9);
+.romantic-loader-floating-field {
+  --floating-field-bg: rgba(8, 6, 16, 0.9);
+}
+
+.romantic-loader-floating-field .input {
+  background: var(--floating-field-bg);
+  border-radius: 12px;
+  min-height: 3rem;
+  padding: 1.06rem 0.72rem 0.42rem;
+}
+
+.romantic-loader-auth-field.romantic-loader-floating-field select.input {
+  background: var(--floating-field-bg);
+  padding-top: 1.06rem;
+  padding-bottom: 0.42rem;
+}
+
+.romantic-loader-floating-field .input::placeholder {
+  color: transparent;
+}
+
+.romantic-loader-floating-field .romantic-loader-floating-label {
+  position: absolute;
+  top: calc(50% - 0.02rem);
+  left: 0.7rem;
+  transform: translateY(-50%);
+  z-index: 2;
+  padding: 0 0.2rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #cbb8e8;
+  pointer-events: none;
+  background: transparent;
+  transition: top 160ms ease, transform 160ms ease, color 160ms ease, font-size 160ms ease,
+    background-color 160ms ease;
+}
+
+.romantic-loader-floating-field .romantic-loader-floating-label::before {
+  content: "";
+  position: absolute;
+  left: -0.34rem;
+  right: -0.34rem;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(9, 7, 18, 0) 0%,
+    var(--floating-field-bg) 14%,
+    var(--floating-field-bg) 86%,
+    rgba(9, 7, 18, 0) 100%
+  );
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 160ms ease, background 160ms ease;
+}
+
+.romantic-loader-floating-field:focus-within .romantic-loader-floating-label,
+.romantic-loader-floating-field.is-filled .romantic-loader-floating-label,
+.romantic-loader-date-field .romantic-loader-floating-label,
+.romantic-loader-select-field .romantic-loader-floating-label {
+  top: -0.34rem;
+  transform: none;
+  font-size: 0.64rem;
+  color: #ffe2f0;
+  background: transparent;
+}
+
+.romantic-loader-floating-field:focus-within .romantic-loader-floating-label::before,
+.romantic-loader-floating-field.is-filled .romantic-loader-floating-label::before,
+.romantic-loader-date-field .romantic-loader-floating-label::before,
+.romantic-loader-select-field .romantic-loader-floating-label::before {
+  opacity: 1;
+}
+
+.romantic-loader-floating-field:focus-within .input,
+.romantic-loader-floating-field:focus-within select.input {
+  --floating-field-bg: rgba(9, 7, 18, 0.95);
+  border-color: rgba(255, 148, 191, 0.74);
+  box-shadow: 0 0 0 3px rgba(255, 84, 136, 0.2), 0 14px 26px -20px rgba(255, 84, 136, 0.6);
+  background: var(--floating-field-bg);
+}
+
+.romantic-loader-floating-field .field-error {
+  padding-left: 0.1rem;
 }
 
 .romantic-loader-auth-submit {
@@ -371,9 +1467,20 @@ a {
   margin-top: 0.16rem;
 }
 
+.romantic-loader-register-button {
+  grid-column: 1 / -1;
+}
+
 .romantic-loader-view-button {
   width: 100%;
   margin-top: 0.16rem;
+}
+
+.romantic-loader-auth-helper {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #ccbee6;
+  line-height: 1.45;
 }
 
 .romantic-loader-auth-feedback {
@@ -2736,6 +3843,11 @@ select.input option {
     gap: 0.5rem;
   }
 
+  .romantic-loader-auth-inline,
+  .romantic-loader-phone-grid {
+    grid-template-columns: 1fr;
+  }
+
   .romantic-loader-start-button,
   .romantic-loader-auth-submit {
     font-size: 0.86rem;
@@ -3074,6 +4186,10 @@ select.input option {
   }
 
   .romantic-loader-auth-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .romantic-loader-auth-tabs {
     grid-template-columns: 1fr;
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { ADMIN_COOKIE_NAME, getAdminUsername, isValidAdminToken } from "@/lib/auth";
+import { ADMIN_COOKIE_NAME, VIEW_COOKIE_NAME, resolveAuthSession } from "@/lib/auth";
 import { readExpenseData, type ExpenseData, writeExpenseData } from "@/lib/expenses";
 
 export const runtime = "nodejs";
@@ -26,8 +26,26 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export async function GET() {
+  const cookieStore = await cookies();
+  const session = resolveAuthSession({
+    adminToken: cookieStore.get(ADMIN_COOKIE_NAME)?.value,
+    viewToken: cookieStore.get(VIEW_COOKIE_NAME)?.value,
+  });
+
+  if (!session.isAuthenticated || session.userId === null) {
+    return NextResponse.json(
+      {
+        error: "Silakan login terlebih dahulu.",
+      },
+      {
+        status: 401,
+        headers: NO_STORE_HEADERS,
+      }
+    );
+  }
+
   try {
-    const data = await readExpenseData();
+    const data = await readExpenseData(session.userId);
 
     return NextResponse.json(
       { data },
@@ -50,9 +68,12 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   const cookieStore = await cookies();
-  const adminToken = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
+  const session = resolveAuthSession({
+    adminToken: cookieStore.get(ADMIN_COOKIE_NAME)?.value,
+    viewToken: cookieStore.get(VIEW_COOKIE_NAME)?.value,
+  });
 
-  if (!isValidAdminToken(adminToken)) {
+  if (!session.isAdmin || session.userId === null) {
     return NextResponse.json(
       {
         error: "Sesi admin tidak valid. Silakan login ulang.",
@@ -83,8 +104,8 @@ export async function PUT(request: Request) {
 
   try {
     const { meta, ...expensePayload } = payload;
-    const data = await writeExpenseData(expensePayload, {
-      actor: getAdminUsername(),
+    const data = await writeExpenseData(session.userId, expensePayload, {
+      actor: session.username ?? "admin",
       page: meta?.page,
       pageLabel: meta?.pageLabel,
     });

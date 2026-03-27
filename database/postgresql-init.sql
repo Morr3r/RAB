@@ -1,13 +1,44 @@
-CREATE TABLE IF NOT EXISTS public.expense_data (
-  id SMALLINT PRIMARY KEY CHECK (id = 1),
+CREATE TABLE IF NOT EXISTS public.app_users (
+  id BIGSERIAL PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  first_name TEXT,
+  last_name TEXT,
+  email TEXT,
+  birth_place TEXT,
+  birth_date DATE,
+  phone_country_code TEXT,
+  phone_number TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS birth_place TEXT;
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS birth_date DATE;
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS phone_country_code TEXT;
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS phone_number TEXT;
+
+CREATE INDEX IF NOT EXISTS app_users_created_at_idx
+ON public.app_users (created_at DESC, id DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS app_users_email_unique_idx
+ON public.app_users (LOWER(email))
+WHERE email IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS public.user_expense_data (
+  user_id BIGINT PRIMARY KEY REFERENCES public.app_users(id) ON DELETE CASCADE,
   event_name TEXT NOT NULL,
   reference_total INTEGER NOT NULL CHECK (reference_total >= 0),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   items JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.expense_history (
+CREATE TABLE IF NOT EXISTS public.user_expense_history (
   id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES public.app_users(id) ON DELETE CASCADE,
   changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   page_key TEXT NOT NULL,
   page_label TEXT NOT NULL,
@@ -16,35 +47,5 @@ CREATE TABLE IF NOT EXISTS public.expense_history (
   details JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
-CREATE INDEX IF NOT EXISTS expense_history_changed_at_idx
-ON public.expense_history (changed_at DESC, id DESC);
-
-INSERT INTO public.expense_data (id, event_name, reference_total, updated_at, items)
-VALUES (
-  1,
-  'Rincian Biaya Lamaran Af&Zah',
-  18000000,
-  NOW(),
-  '[
-    {"id":"bensin","title":"Bensin","unitCost":800000,"quantity":2,"note":"Avanza (PP)","paid":false},
-    {"id":"tol","title":"Tol","unitCost":900000,"quantity":2,"note":"Estimasi pulang-pergi","paid":false},
-    {"id":"makan-berat","title":"Makan Berat (1 Orang)","unitCost":100000,"quantity":10,"note":"10 x 100.000","paid":false},
-    {"id":"oleh-oleh","title":"Oleh-oleh (Bandung)","unitCost":1000000,"quantity":1,"note":"Kurang lebih","paid":false},
-    {"id":"penginapan","title":"Penginapan","unitCost":200000,"quantity":12,"note":"4 kamar x 3 malam (Jumat, Sabtu, Minggu)","paid":false},
-    {"id":"cincin","title":"Cincin (Tunangan)","unitCost":3500000,"quantity":1,"note":"","paid":false},
-    {"id":"dana-darurat","title":"Dana Darurat","unitCost":3000000,"quantity":1,"note":"","paid":false}
-  ]'::jsonb
-)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.expense_history (page_key, page_label, actor, summary, details)
-SELECT
-  'dashboard',
-  'Dashboard Biaya',
-  'system',
-  'Tracking history diaktifkan.',
-  '[ "Snapshot awal data berhasil dibuat." ]'::jsonb
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.expense_history
-);
+CREATE INDEX IF NOT EXISTS user_expense_history_user_changed_at_idx
+ON public.user_expense_history (user_id, changed_at DESC, id DESC);

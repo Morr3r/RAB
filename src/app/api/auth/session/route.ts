@@ -3,9 +3,7 @@ import { cookies } from "next/headers";
 import {
   ADMIN_COOKIE_NAME,
   VIEW_COOKIE_NAME,
-  getAdminUsername,
-  isValidAdminToken,
-  isValidViewToken,
+  resolveAuthSession,
 } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -19,16 +17,14 @@ export async function GET() {
   const cookieStore = await cookies();
   const adminToken = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
   const viewToken = cookieStore.get(VIEW_COOKIE_NAME)?.value;
-  const isAdmin = isValidAdminToken(adminToken);
-  const isViewOnly = !isAdmin && isValidViewToken(viewToken);
-  const isAuthenticated = isAdmin || isViewOnly;
+  const session = resolveAuthSession({ adminToken, viewToken });
 
   return NextResponse.json(
     {
-      isAdmin,
-      isViewOnly,
-      isAuthenticated,
-      username: isAuthenticated ? getAdminUsername() : null,
+      isAdmin: session.isAdmin,
+      isViewOnly: session.isViewOnly,
+      isAuthenticated: session.isAuthenticated,
+      username: session.username,
     },
     {
       headers: NO_STORE_HEADERS,

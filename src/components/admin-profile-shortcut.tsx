@@ -32,7 +32,6 @@ const LOGIN_USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 const LOGIN_USERNAME_MIN_LENGTH = 3;
 const LOGIN_USERNAME_MAX_LENGTH = 32;
 const LOGIN_PASSWORD_MIN_LENGTH = 8;
-const LOGIN_PASSWORD_MAX_LENGTH = 128;
 const ADMIN_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const IDLE_ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
   "pointerdown",
@@ -59,11 +58,8 @@ function validateLoginFields(usernameRaw: string, passwordRaw: string): LoginFie
 
   if (!password) {
     fieldErrors.password = "Password wajib diisi.";
-  } else if (
-    password.length < LOGIN_PASSWORD_MIN_LENGTH ||
-    password.length > LOGIN_PASSWORD_MAX_LENGTH
-  ) {
-    fieldErrors.password = `Password harus ${LOGIN_PASSWORD_MIN_LENGTH}-${LOGIN_PASSWORD_MAX_LENGTH} karakter.`;
+  } else if (password.length < LOGIN_PASSWORD_MIN_LENGTH) {
+    fieldErrors.password = `Password minimal ${LOGIN_PASSWORD_MIN_LENGTH} karakter.`;
   }
 
   return fieldErrors;
@@ -560,7 +556,6 @@ export default function AdminProfileShortcut() {
                   autoComplete="current-password"
                   value={loginPassword}
                   minLength={LOGIN_PASSWORD_MIN_LENGTH}
-                  maxLength={LOGIN_PASSWORD_MAX_LENGTH}
                   aria-invalid={Boolean(loginErrors.password)}
                   aria-describedby={loginErrors.password ? "admin-login-modal-password-error" : undefined}
                   onChange={(event) => {

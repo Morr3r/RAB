@@ -33,6 +33,7 @@ const LOGIN_USERNAME_MIN_LENGTH = 3;
 const LOGIN_USERNAME_MAX_LENGTH = 32;
 const LOGIN_PASSWORD_MIN_LENGTH = 8;
 const ADMIN_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const AUTH_SESSION_CHANGED_EVENT = "engagement:auth-session-changed";
 const IDLE_ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
   "pointerdown",
   "keydown",
@@ -166,6 +167,17 @@ export default function AdminProfileShortcut() {
 
   useEffect(() => {
     void syncSession();
+  }, [syncSession]);
+
+  useEffect(() => {
+    const handleAuthSessionChanged = () => {
+      void syncSession();
+    };
+
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, handleAuthSessionChanged);
+    return () => {
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, handleAuthSessionChanged);
+    };
   }, [syncSession]);
 
   const clearIdleTimer = useCallback(() => {
@@ -319,6 +331,7 @@ export default function AdminProfileShortcut() {
   const avatarLabel = useMemo(() => initialsFromName(username || "Admin"), [username]);
   const title = isAdmin ? "Menu admin" : isViewOnly ? "Menu view mode" : "Menu login admin";
   const menuButtonText = isAuthenticated ? "Logout" : "Login";
+  const showActiveDot = isAuthenticated && !isSyncingSession;
   const isLoginDataValid = useMemo(
     () => Object.keys(validateLoginFields(loginUsername, loginPassword)).length === 0,
     [loginPassword, loginUsername]
@@ -435,13 +448,18 @@ export default function AdminProfileShortcut() {
           onClick={toggleMenu}
         >
           <span className="admin-profile-shortcut-avatar">{avatarLabel}</span>
-          <span className="admin-profile-shortcut-copy">
-            <span className="admin-profile-shortcut-label">
-              {isAuthenticated ? username || "Admin" : "Admin"}
-            </span>
-            <span className="admin-profile-shortcut-caption">
-              {isAdmin ? "Admin Aktif" : isViewOnly ? "View Mode" : "Login Admin"}
-            </span>
+            <span className="admin-profile-shortcut-copy">
+              <span className="admin-profile-shortcut-label">
+                <span className="admin-profile-shortcut-label-text">
+                  {isAuthenticated ? username || "Admin" : "Admin"}
+                </span>
+                {showActiveDot && <span className="admin-profile-shortcut-status-dot" aria-hidden="true" />}
+              </span>
+            {!isAdmin && (
+              <span className="admin-profile-shortcut-caption">
+                {isViewOnly ? "View Mode" : "Login Admin"}
+              </span>
+            )}
           </span>
           <span className="admin-profile-shortcut-chevron" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -461,7 +479,7 @@ export default function AdminProfileShortcut() {
             {isSyncingSession
               ? "Memuat status..."
               : isAdmin
-                ? "Admin sedang login"
+                ? "Anda sedang login"
                 : isViewOnly
                   ? "View mode aktif"
                   : "Belum login"}

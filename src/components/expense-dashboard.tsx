@@ -1,6 +1,8 @@
 "use client";
 
+import { Pagination } from "@heroui/react";
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
@@ -8,7 +10,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { MdEdit } from "react-icons/md";
+import { MdAdd, MdEdit, MdRemove } from "react-icons/md";
 import type { ExpenseData, ExpenseItem } from "@/lib/expenses";
 
 type FeedbackType = "success" | "error" | "info";
@@ -19,7 +21,7 @@ type SortOption =
   | "name"
   | "unpaid-first"
   | "paid-first";
-type ChartMode = "donut" | "bar";
+type ChartMode = "donut" | "chart";
 
 type FeedbackMessage = {
   type: FeedbackType;
@@ -28,6 +30,7 @@ type FeedbackMessage = {
 
 type ItemEditorDraft = {
   title: string;
+  category: string;
   unitCost: string;
   quantity: string;
   note: string;
@@ -50,6 +53,7 @@ type DeleteItemDialog = {
 type ChartItem = {
   id: string;
   title: string;
+  category: string;
   subtotal: number;
   percentage: number;
   color: string;
@@ -59,7 +63,7 @@ type ChartTooltipState = {
   item: ChartItem;
   x: number;
   y: number;
-  side: "left" | "right";
+  arrowX: number;
 };
 
 type ExpenseDashboardProps = {
@@ -97,6 +101,10 @@ const CHART_COLORS = [
 ];
 
 const EXPENSE_SYNC_INTERVAL_MS = 10000;
+const CHART_ITEMS_PER_PAGE = 4;
+const MOBILE_TABLE_BREAKPOINT_QUERY = "(max-width: 760px)";
+const MOBILE_TABLE_ITEMS_PER_PAGE = 3;
+const DESKTOP_TABLE_ITEMS_PER_PAGE = 10;
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -108,6 +116,10 @@ const percentFormatter = new Intl.NumberFormat("id-ID", {
   style: "percent",
   maximumFractionDigits: 1,
 });
+const compactNumberFormatter = new Intl.NumberFormat("id-ID", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
 function formatRupiah(value: number) {
   return idrFormatter.format(value);
@@ -115,6 +127,10 @@ function formatRupiah(value: number) {
 
 function formatPercent(value: number) {
   return percentFormatter.format(value);
+}
+
+function formatCompactNumber(value: number) {
+  return compactNumberFormatter.format(value);
 }
 
 function formatDate(value: string) {
@@ -167,6 +183,24 @@ function normalizeText(value: string) {
   return value.toLowerCase().trim();
 }
 
+function getItemInitials(title: string) {
+  const segments = title
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (segments.length === 0) {
+    return "?";
+  }
+
+  const initials = segments
+    .slice(0, 2)
+    .map((segment) => segment.slice(0, 1).toUpperCase())
+    .join("");
+
+  return initials || title.trim().slice(0, 1).toUpperCase() || "?";
+}
+
 function getCategoryLabel(title: string) {
   const text = normalizeText(title);
 
@@ -198,9 +232,15 @@ function describeBudgetMood(delta: number) {
   return "Estimasi masih di bawah referensi, ruang cadangan masih aman.";
 }
 
+function resolveCategoryLabel(item: Pick<ExpenseItem, "title" | "category">) {
+  const manualCategory = item.category.trim();
+  return manualCategory.length > 0 ? manualCategory : getCategoryLabel(item.title);
+}
+
 function createItemEditorDraft(item: ExpenseItem): ItemEditorDraft {
   return {
     title: item.title,
+    category: item.category,
     unitCost: formatWithThousandDots(String(item.unitCost)),
     quantity: String(item.quantity),
     note: item.note,
@@ -211,6 +251,7 @@ function createItemEditorDraft(item: ExpenseItem): ItemEditorDraft {
 function createNewItemEditorDraft(): ItemEditorDraft {
   return {
     title: "",
+    category: "",
     unitCost: "",
     quantity: "",
     note: "",
@@ -250,6 +291,7 @@ function sanitizeClientItem(item: Partial<ExpenseItem> | undefined, index: numbe
   return {
     id: rawId.length > 0 ? rawId : `item-${index + 1}`,
     title: rawTitle.length > 0 ? rawTitle : "Biaya Baru",
+    category: typeof item?.category === "string" ? item.category.trim() : "",
     unitCost: updateNumericValue(String(item?.unitCost ?? 0), 0),
     quantity: Math.max(0, updateNumericValue(String(item?.quantity ?? 0), 0)),
     note: typeof item?.note === "string" ? item.note : "",
@@ -387,58 +429,120 @@ function DonutChart({
   );
 }
 
-type BarChartProps = {
+type TrendChartProps = {
   data: ChartItem[];
+  maxSubtotal: number;
   highlightedId: string | null;
   onHighlight: (id: string | null) => void;
-  onTooltipMove: (item: ChartItem, x: number, y: number) => void;
-  onTooltipLeave: () => void;
+  rankOffset?: number;
 };
 
-function BarChart({
+function TrendChart({
   data,
+  maxSubtotal,
   highlightedId,
   onHighlight,
-  onTooltipMove,
-  onTooltipLeave,
-}: BarChartProps) {
-  const maxValue = Math.max(...data.map((item) => item.subtotal), 1);
+  rankOffset = 0,
+}: TrendChartProps) {
+  const maxValue = Math.max(maxSubtotal, 1);
+
+  if (data.length === 0) {
+    return (
+      <div className="trend-chart-shell is-empty">
+        <div className="trend-chart-empty">
+          <p className="trend-chart-empty-title">Belum ada data visual</p>
+          <p className="trend-chart-empty-copy">
+            Tambahkan item biaya terlebih dahulu agar chart bisa menampilkan distribusi pengeluaran.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bar-chart">
-      {data.map((item) => {
-        const width = `${(item.subtotal / maxValue) * 100}%`;
-        const isActive = item.id === highlightedId;
+    <div className="trend-chart-shell">
+      <div className="trend-chart-head">
+        <div>
+          <p className="trend-chart-eyebrow">Cost Spectrum</p>
+          <p className="trend-chart-title">
+            Ranking komponen biaya paling dominan dengan fokus visual yang lebih tegas.
+          </p>
+        </div>
+        <div className="trend-chart-summary">
+          <span className="trend-chart-summary-label">Peak Spend</span>
+          <span className="trend-chart-summary-value">{formatCompactNumber(maxValue)}</span>
+        </div>
+      </div>
 
-        return (
-          <button
-            key={item.id}
-            type="button"
-            className={`bar-row ${isActive ? "is-active" : ""}`}
-            onMouseEnter={(event) => {
-              onHighlight(item.id);
-              onTooltipMove(item, event.clientX, event.clientY);
-            }}
-            onMouseMove={(event) => onTooltipMove(item, event.clientX, event.clientY)}
-            onMouseLeave={() => {
-              onHighlight(null);
-              onTooltipLeave();
-            }}
-            onFocus={() => onHighlight(item.id)}
-            onBlur={() => {
-              onHighlight(null);
-              onTooltipLeave();
-            }}
-            onClick={() => onHighlight(highlightedId === item.id ? null : item.id)}
-          >
-            <span className="bar-label">{item.title}</span>
-            <span className="bar-track">
-              <span className="bar-fill" style={{ width, background: item.color }} />
-            </span>
-            <span className="bar-value">{formatRupiah(item.subtotal)}</span>
-          </button>
-        );
-      })}
+      <div className="trend-chart-list" role="list" aria-label="Ranking komponen biaya">
+        {data.map((item, index) => {
+          const isActive = highlightedId === item.id;
+          const fillWidth = maxValue === 0 ? 14 : Math.max((item.subtotal / maxValue) * 100, 14);
+          const categoryLabel = item.category;
+          const badgeLabel = getItemInitials(item.title);
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`trend-chart-row ${isActive ? "is-active" : ""}`}
+              aria-label={`${item.title}, ${formatRupiah(item.subtotal)}, ${formatPercent(item.percentage)}`}
+              onMouseEnter={() => {
+                onHighlight(item.id);
+              }}
+              onMouseLeave={() => {
+                onHighlight(null);
+              }}
+              onFocus={() => {
+                onHighlight(item.id);
+              }}
+              onBlur={() => {
+                onHighlight(null);
+              }}
+              onClick={() => onHighlight(highlightedId === item.id ? null : item.id)}
+            >
+              <span className="trend-chart-rank-wrap">
+                <span className="trend-chart-rank">{String(rankOffset + index + 1).padStart(2, "0")}</span>
+                <span
+                  className="trend-chart-avatar"
+                  style={{
+                    background: `radial-gradient(circle at 30% 30%, ${item.color}, ${item.color}99)`,
+                    boxShadow: `0 0 24px ${item.color}44`,
+                  }}
+                >
+                  {badgeLabel}
+                </span>
+              </span>
+
+              <span className="trend-chart-content">
+                <span className="trend-chart-row-head">
+                  <span className="trend-chart-copy">
+                    <span className="trend-chart-item-title">{item.title}</span>
+                    <span className="trend-chart-item-meta">
+                      {categoryLabel} | {formatPercent(item.percentage)}
+                    </span>
+                  </span>
+                  <span className="trend-chart-value-wrap">
+                    <span className="trend-chart-value-compact">{formatCompactNumber(item.subtotal)}</span>
+                    <span className="trend-chart-value-full">{formatRupiah(item.subtotal)}</span>
+                  </span>
+                </span>
+
+                <span className="trend-chart-track" aria-hidden="true">
+                  <span
+                    className="trend-chart-fill"
+                    style={{
+                      width: `${fillWidth}%`,
+                      background: `linear-gradient(90deg, ${item.color} 0%, ${item.color}cc 100%)`,
+                      boxShadow: `0 0 28px ${item.color}44`,
+                    }}
+                  />
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -453,6 +557,9 @@ export default function ExpenseDashboard({
   const [sortOption, setSortOption] = useState<SortOption>("manual");
   const [query, setQuery] = useState("");
   const [chartMode, setChartMode] = useState<ChartMode>("donut");
+  const [chartPage, setChartPage] = useState(1);
+  const [tablePage, setTablePage] = useState(1);
+  const [isMobileTableViewport, setIsMobileTableViewport] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [lastDraft, setLastDraft] = useState<ExpenseData | null>(null);
   const [chartTooltip, setChartTooltip] = useState<ChartTooltipState | null>(null);
@@ -519,6 +626,20 @@ export default function ExpenseDashboard({
     };
   }, [initialIsAdmin]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_TABLE_BREAKPOINT_QUERY);
+    const syncViewport = () => {
+      setIsMobileTableViewport(mediaQuery.matches);
+    };
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
+
   const calculatedTotal = useMemo(() => {
     return data.items.reduce((sum, item) => sum + item.unitCost * item.quantity, 0);
   }, [data.items]);
@@ -559,6 +680,14 @@ export default function ExpenseDashboard({
 
     return output;
   }, [data.items, query, sortOption]);
+  const tableItemsPerPage = isMobileTableViewport
+    ? MOBILE_TABLE_ITEMS_PER_PAGE
+    : DESKTOP_TABLE_ITEMS_PER_PAGE;
+  const tableTotalPages = Math.max(1, Math.ceil(displayedItems.length / tableItemsPerPage));
+  const paginatedDisplayedItems = useMemo(() => {
+    const start = (tablePage - 1) * tableItemsPerPage;
+    return displayedItems.slice(start, start + tableItemsPerPage);
+  }, [displayedItems, tableItemsPerPage, tablePage]);
 
   const colorById = useMemo(() => {
     return Object.fromEntries(
@@ -575,12 +704,22 @@ export default function ExpenseDashboard({
       return {
         id: item.id,
         title: item.title,
+        category: resolveCategoryLabel(item),
         subtotal,
         percentage: total === 0 ? 0 : subtotal / total,
         color: colorById[item.id] ?? CHART_COLORS[0],
       };
     });
   }, [displayedItems, data.items, colorById]);
+  const rankedChartData = useMemo(
+    () => [...chartData].sort((left, right) => right.subtotal - left.subtotal),
+    [chartData]
+  );
+  const chartTotalPages = Math.max(1, Math.ceil(rankedChartData.length / CHART_ITEMS_PER_PAGE));
+  const paginatedRankedChartData = useMemo(() => {
+    const start = (chartPage - 1) * CHART_ITEMS_PER_PAGE;
+    return rankedChartData.slice(start, start + CHART_ITEMS_PER_PAGE);
+  }, [chartPage, rankedChartData]);
 
   const highestCostItem = useMemo(() => {
     if (data.items.length === 0) {
@@ -609,23 +748,23 @@ export default function ExpenseDashboard({
   }, [feedback]);
 
   const showChartTooltip = useCallback((item: ChartItem, x: number, y: number) => {
-    const horizontalOffset = 2;
-    const verticalOffset = 2;
+    const horizontalPadding = 8;
+    const verticalOffset = 18;
     const tooltipWidth = 206;
     const tooltipHeight = 62;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const side = x + horizontalOffset + tooltipWidth > viewportWidth ? "left" : "right";
-    const nextX =
-      side === "right"
-        ? Math.min(x + horizontalOffset, viewportWidth - tooltipWidth - 8)
-        : Math.max(8, x - tooltipWidth - horizontalOffset);
-    const nextY = Math.max(
-      8,
-      Math.min(y + verticalOffset, viewportHeight - tooltipHeight - 8)
+    const nextX = Math.max(
+      horizontalPadding,
+      Math.min(x - tooltipWidth / 2, viewportWidth - tooltipWidth - horizontalPadding)
     );
+    const nextY = Math.max(
+      horizontalPadding,
+      Math.min(y - tooltipHeight - verticalOffset, viewportHeight - tooltipHeight - horizontalPadding)
+    );
+    const arrowX = Math.max(18, Math.min(tooltipWidth - 18, x - nextX));
 
-    setChartTooltip({ item, x: nextX, y: nextY, side });
+    setChartTooltip({ item, x: nextX, y: nextY, arrowX });
   }, []);
 
   const hideChartTooltip = useCallback(() => {
@@ -726,6 +865,21 @@ export default function ExpenseDashboard({
     setDeleteItemDialog(null);
   }, []);
 
+  const adjustItemEditorQuantity = useCallback((delta: number) => {
+    setItemEditorDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextQuantity = Math.max(0, updateNumericValue(current.quantity, 0) + delta);
+      return {
+        ...current,
+        quantity: String(nextQuantity),
+      };
+    });
+    setItemEditorErrors((current) => ({ ...current, quantity: undefined }));
+  }, []);
+
   const saveItemEditor = () => {
     if (!itemEditorDraft) {
       return;
@@ -738,6 +892,7 @@ export default function ExpenseDashboard({
     }
 
     const nextTitle = itemEditorDraft.title.trim();
+    const nextCategory = itemEditorDraft.category.trim();
     const nextUnitCost = updateNumericValue(String(parseFormattedInteger(itemEditorDraft.unitCost)), 0);
     const nextQuantity = updateNumericValue(itemEditorDraft.quantity, 0);
 
@@ -747,6 +902,7 @@ export default function ExpenseDashboard({
       const newItem: ExpenseItem = {
         id: globalThis.crypto.randomUUID(),
         title: nextTitle,
+        category: nextCategory,
         unitCost: nextUnitCost,
         quantity: nextQuantity,
         note: itemEditorDraft.note,
@@ -778,6 +934,7 @@ export default function ExpenseDashboard({
           ? {
               ...item,
               title: nextTitle,
+              category: nextCategory,
               unitCost: nextUnitCost,
               quantity: nextQuantity,
               note: itemEditorDraft.note,
@@ -884,7 +1041,7 @@ export default function ExpenseDashboard({
       return;
     }
 
-    setFeedback({ type: "info", text: "Menyimpan perubahan ke server..." });
+    setFeedback({ type: "info", text: "Menyimpan perubahan..." });
 
     startTransition(() => {
       void (async () => {
@@ -922,7 +1079,7 @@ export default function ExpenseDashboard({
           setLastDraft(null);
           setFeedback({
             type: "success",
-            text: "Perubahan berhasil disimpan dan tersinkron ke semua device.",
+            text: "Perubahan berhasil disimpan.",
           });
         } catch (error) {
           setFeedback({
@@ -941,6 +1098,22 @@ export default function ExpenseDashboard({
 
     resetReferenceDraft(data.referenceTotal);
   }, [data.referenceTotal, isReferenceEditing, resetReferenceDraft]);
+
+  useEffect(() => {
+    setChartPage((current) => Math.min(current, chartTotalPages));
+  }, [chartTotalPages]);
+
+  useEffect(() => {
+    setChartPage(1);
+  }, [query, sortOption]);
+
+  useEffect(() => {
+    setTablePage((current) => Math.min(current, tableTotalPages));
+  }, [tableTotalPages]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [query, sortOption, tableItemsPerPage]);
 
   useEffect(() => {
     if (lastDraft) {
@@ -1199,13 +1372,13 @@ export default function ExpenseDashboard({
                 </button>
                 <button
                   type="button"
-                  className={`button button-ghost ${chartMode === "bar" ? "is-selected" : ""}`}
+                  className={`button button-ghost ${chartMode === "chart" ? "is-selected" : ""}`}
                   onClick={() => {
                     hideChartTooltip();
-                    setChartMode("bar");
+                    setChartMode("chart");
                   }}
                 >
-                  Bar
+                  Chart
                 </button>
               </div>
             </div>
@@ -1221,18 +1394,24 @@ export default function ExpenseDashboard({
                   onTooltipLeave={hideChartTooltip}
                 />
               ) : (
-                <BarChart
-                  data={chartData}
+                <TrendChart
+                  data={paginatedRankedChartData}
+                  maxSubtotal={rankedChartData[0]?.subtotal ?? 0}
                   highlightedId={highlightedId}
                   onHighlight={setHighlightedId}
-                  onTooltipMove={showChartTooltip}
-                  onTooltipLeave={hideChartTooltip}
+                  rankOffset={(chartPage - 1) * CHART_ITEMS_PER_PAGE}
                 />
               )}
-              {chartTooltip && (
+              {chartMode === "donut" && chartTooltip && (
                 <div
-                  className={`chart-tooltip ${chartTooltip.side === "left" ? "is-left" : "is-right"}`}
-                  style={{ left: chartTooltip.x, top: chartTooltip.y }}
+                  className="chart-tooltip"
+                  style={
+                    {
+                      left: chartTooltip.x,
+                      top: chartTooltip.y,
+                      "--chart-tooltip-arrow-x": `${chartTooltip.arrowX}px`,
+                    } as CSSProperties
+                  }
                   role="status"
                 >
                   <span
@@ -1250,8 +1429,48 @@ export default function ExpenseDashboard({
               )}
             </div>
 
+            {chartMode === "chart" && (
+              <div className="chart-pagination-wrap">
+                <Pagination className="chart-pagination" aria-label="Paginasi chart ranking biaya">
+                  <Pagination.Content className="chart-pagination-content">
+                    <Pagination.Item>
+                      <Pagination.Previous
+                        className="chart-pagination-control"
+                        isDisabled={chartPage === 1}
+                        onPress={() => setChartPage((page) => Math.max(1, page - 1))}
+                      >
+                        <Pagination.PreviousIcon />
+                        <span>Previous</span>
+                      </Pagination.Previous>
+                    </Pagination.Item>
+                    {Array.from({ length: chartTotalPages }, (_, index) => index + 1).map((page) => (
+                      <Pagination.Item key={page}>
+                        <Pagination.Link
+                          className={`chart-pagination-link ${page === chartPage ? "is-active" : ""}`}
+                          isActive={page === chartPage}
+                          onPress={() => setChartPage(page)}
+                        >
+                          {page}
+                        </Pagination.Link>
+                      </Pagination.Item>
+                    ))}
+                    <Pagination.Item>
+                      <Pagination.Next
+                        className="chart-pagination-control"
+                        isDisabled={chartPage === chartTotalPages}
+                        onPress={() => setChartPage((page) => Math.min(chartTotalPages, page + 1))}
+                      >
+                        <span>Next</span>
+                        <Pagination.NextIcon />
+                      </Pagination.Next>
+                    </Pagination.Item>
+                  </Pagination.Content>
+                </Pagination>
+              </div>
+            )}
+
             <div className="legend-grid">
-              {chartData.map((item) => (
+              {(chartMode === "chart" ? paginatedRankedChartData : chartData).map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1292,7 +1511,7 @@ export default function ExpenseDashboard({
                 </p>
                 <p className="note-caption">
                   {highlightedItem
-                    ? `${getCategoryLabel(highlightedItem.title)} | ${formatRupiah(
+                    ? `${resolveCategoryLabel(highlightedItem)} | ${formatRupiah(
                         highlightedItem.unitCost * highlightedItem.quantity
                       )}`
                     : "Pilih chart/legend untuk melihat detail."}
@@ -1332,7 +1551,6 @@ export default function ExpenseDashboard({
                   setQuery(event.target.value);
                 }}
               />
-              <span className="field-hint">Shortcut: tekan &quot;/&quot; untuk fokus ke kolom ini</span>
             </label>
             <label className="control-field">
               Urutkan
@@ -1363,11 +1581,12 @@ export default function ExpenseDashboard({
                   <th>Qty</th>
                   <th>Status Bayar</th>
                   <th>Subtotal</th>
-                  {isAdmin && <th>Aksi</th>}
+                  <th>Kategori</th>
+                  {isAdmin && <th className="expense-table-actions-header" aria-label="Aksi" />}
                 </tr>
               </thead>
               <tbody>
-                {displayedItems.map((item) => {
+                {paginatedDisplayedItems.map((item) => {
                   const subtotal = item.unitCost * item.quantity;
                   const isRowActive = highlightedId === item.id;
 
@@ -1379,7 +1598,6 @@ export default function ExpenseDashboard({
                       <td data-label="Item">
                         <div>
                           <p className="cell-title">{item.title}</p>
-                          <p className="cell-pill">{getCategoryLabel(item.title)}</p>
                           {item.note.length > 0 && <p className="cell-note">{item.note}</p>}
                         </div>
                       </td>
@@ -1397,8 +1615,11 @@ export default function ExpenseDashboard({
                       <td data-label="Subtotal">
                         <span className="cell-amount">{formatRupiah(subtotal)}</span>
                       </td>
+                      <td data-label="Kategori">
+                        <span className="cell-pill table-category-pill">{resolveCategoryLabel(item)}</span>
+                      </td>
                       {isAdmin && (
-                        <td data-label="Aksi">
+                        <td className="expense-table-actions-cell" data-label="">
                           <div className="admin-controls">
                             <button
                               className="button button-primary"
@@ -1430,6 +1651,51 @@ export default function ExpenseDashboard({
               </tbody>
             </table>
           </div>
+
+          {displayedItems.length > 0 && (
+            <div className="table-pagination-wrap">
+              <p className="table-pagination-summary">
+                Menampilkan {(tablePage - 1) * tableItemsPerPage + 1}-
+                {Math.min(tablePage * tableItemsPerPage, displayedItems.length)} dari{" "}
+                {displayedItems.length} item
+              </p>
+              <Pagination className="table-pagination" aria-label="Paginasi tabel rincian item biaya">
+                <Pagination.Content className="table-pagination-content">
+                  <Pagination.Item>
+                    <Pagination.Previous
+                      className="table-pagination-control"
+                      isDisabled={tablePage === 1}
+                      onPress={() => setTablePage((page) => Math.max(1, page - 1))}
+                    >
+                      <Pagination.PreviousIcon />
+                      <span>Previous</span>
+                    </Pagination.Previous>
+                  </Pagination.Item>
+                  {Array.from({ length: tableTotalPages }, (_, index) => index + 1).map((page) => (
+                    <Pagination.Item key={page}>
+                      <Pagination.Link
+                        className={`table-pagination-link ${page === tablePage ? "is-active" : ""}`}
+                        isActive={page === tablePage}
+                        onPress={() => setTablePage(page)}
+                      >
+                        {page}
+                      </Pagination.Link>
+                    </Pagination.Item>
+                  ))}
+                  <Pagination.Item>
+                    <Pagination.Next
+                      className="table-pagination-control"
+                      isDisabled={tablePage === tableTotalPages}
+                      onPress={() => setTablePage((page) => Math.min(tableTotalPages, page + 1))}
+                    >
+                      <span>Next</span>
+                      <Pagination.NextIcon />
+                    </Pagination.Next>
+                  </Pagination.Item>
+                </Pagination.Content>
+              </Pagination>
+            </div>
+          )}
 
           <div className="panel-footer">
             <div className="total-wrap">
@@ -1551,6 +1817,19 @@ export default function ExpenseDashboard({
               </label>
 
               <label className="field-label">
+                Kategori
+                <input
+                  className="input"
+                  value={itemEditorDraft.category}
+                  onChange={(event) =>
+                    setItemEditorDraft((current) =>
+                      current ? { ...current, category: event.target.value } : current
+                    )
+                  }
+                />
+              </label>
+
+              <label className="field-label">
                 Biaya Satuan
                 <input
                   className="number-input"
@@ -1573,19 +1852,39 @@ export default function ExpenseDashboard({
 
               <label className="field-label">
                 Qty
-                <input
-                  className="number-input"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={itemEditorDraft.quantity}
-                  onChange={(event) => {
-                    setItemEditorDraft((current) =>
-                      current ? { ...current, quantity: event.target.value } : current
-                    );
-                    setItemEditorErrors((current) => ({ ...current, quantity: undefined }));
-                  }}
-                />
+                <div className="quantity-stepper">
+                  <button
+                    className="quantity-stepper-button"
+                    type="button"
+                    aria-label="Kurangi jumlah"
+                    onClick={() => adjustItemEditorQuantity(-1)}
+                  >
+                    <MdRemove aria-hidden />
+                  </button>
+                  <input
+                    className="quantity-stepper-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="0"
+                    value={itemEditorDraft.quantity}
+                    onChange={(event) => {
+                      const nextQuantity = toDigitsOnly(event.target.value);
+                      setItemEditorDraft((current) =>
+                        current ? { ...current, quantity: nextQuantity } : current
+                      );
+                      setItemEditorErrors((current) => ({ ...current, quantity: undefined }));
+                    }}
+                  />
+                  <button
+                    className="quantity-stepper-button"
+                    type="button"
+                    aria-label="Tambah jumlah"
+                    onClick={() => adjustItemEditorQuantity(1)}
+                  >
+                    <MdAdd aria-hidden />
+                  </button>
+                </div>
                 {itemEditorErrors.quantity && (
                   <span className="field-error">{itemEditorErrors.quantity}</span>
                 )}

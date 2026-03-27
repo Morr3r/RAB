@@ -28,6 +28,7 @@ const LOGIN_USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 const LOGIN_USERNAME_MIN_LENGTH = 3;
 const LOGIN_USERNAME_MAX_LENGTH = 32;
 const LOGIN_PASSWORD_MIN_LENGTH = 8;
+const AUTH_SESSION_CHANGED_EVENT = "engagement:auth-session-changed";
 
 function validateLoginFields(usernameRaw: string, passwordRaw: string): LoginFieldErrors {
   const username = usernameRaw.trim();
@@ -133,6 +134,7 @@ export default function AdminAccessPage({ initialAdminUsername }: AdminAccessPag
             type: "success",
             text: "Login admin berhasil. Silakan kembali ke dashboard untuk edit data.",
           });
+          window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
         } catch (error) {
           setFeedback({
             type: "error",

@@ -6,6 +6,7 @@ import { ensureUsersSchemaReady } from "@/lib/users";
 export type ExpenseItem = {
   id: string;
   title: string;
+  category: string;
   unitCost: number;
   quantity: number;
   note: string;
@@ -229,6 +230,7 @@ function sanitizeItem(item: Partial<ExpenseItem> | undefined, index: number): Ex
       typeof item?.title === "string" && item.title.trim().length > 0
         ? item.title.trim()
         : "Biaya Baru",
+    category: typeof item?.category === "string" ? item.category.trim() : "",
     unitCost: toPositiveInteger(item?.unitCost),
     quantity: Math.max(0, toPositiveInteger(item?.quantity, 0)),
     note: typeof item?.note === "string" ? item.note : "",
@@ -398,6 +400,7 @@ function mapRowToExpenseHistory(row: ExpenseHistoryRow): ExpenseHistoryEntry {
 function areItemsEquivalent(left: ExpenseItem, right: ExpenseItem) {
   return (
     left.title === right.title &&
+    left.category === right.category &&
     left.unitCost === right.unitCost &&
     left.quantity === right.quantity &&
     left.note === right.note &&
@@ -458,6 +461,14 @@ function detectExpenseChanges(
 
     if (currentItem.title !== nextItem.title) {
       details.push(`Nama item "${currentItem.title}" diubah menjadi "${nextItem.title}".`);
+    }
+
+    if (currentItem.category !== nextItem.category) {
+      details.push(
+        nextItem.category.trim().length > 0
+          ? `Kategori item "${nextItem.title}" diubah menjadi "${nextItem.category}".`
+          : `Kategori item "${nextItem.title}" dikembalikan ke kategori otomatis.`
+      );
     }
 
     if (

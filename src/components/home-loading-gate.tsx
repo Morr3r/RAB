@@ -134,6 +134,7 @@ const FLOATING_HEARTS: FloatingHeart[] = [
 
 let hasPlayedInRuntime = false;
 const GATE_RESET_EVENT = "engagement:gate-reset";
+const AUTH_SESSION_CHANGED_EVENT = "engagement:auth-session-changed";
 
 function validateLoginFields(usernameRaw: string, passwordRaw: string): AuthFieldErrors {
   const username = usernameRaw.trim();
@@ -421,6 +422,7 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
       window.clearTimeout(exitTimerRef.current);
     }
 
+    window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
     setIsExiting(true);
 
     exitTimerRef.current = window.setTimeout(() => {

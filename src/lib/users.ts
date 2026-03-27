@@ -5,7 +5,7 @@ import { hashPassword, normalizeUsername, verifyPassword } from "@/lib/auth";
 type DatabaseClient = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 
 type UserRow = {
-  id: number;
+  id: number | string;
   username: string;
   password_hash: string;
 };
@@ -31,6 +31,19 @@ const HARDCODED_LOGIN = {
   username: "afghany",
   password: "fatimatuz2006",
 } as const;
+
+function parseUserId(rawId: number | string, username: string) {
+  const parsedId =
+    typeof rawId === "number"
+      ? rawId
+      : Number.parseInt(String(rawId), 10);
+
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error(`ID user tidak valid untuk akun ${username}.`);
+  }
+
+  return parsedId;
+}
 
 export class DuplicateUsernameError extends Error {
   constructor() {
@@ -141,7 +154,7 @@ async function ensureHardcodedUser(client: DatabaseClient): Promise<AuthUser> {
   const existingUser = await findUserByUsername(client, HARDCODED_LOGIN.username);
   if (existingUser) {
     return {
-      id: existingUser.id,
+      id: parseUserId(existingUser.id, existingUser.username),
       username: existingUser.username,
     };
   }
@@ -158,7 +171,12 @@ async function ensureHardcodedUser(client: DatabaseClient): Promise<AuthUser> {
     [HARDCODED_LOGIN.username, passwordHash]
   );
 
-  return result.rows[0];
+  const user = result.rows[0];
+
+  return {
+    id: parseUserId(user.id, user.username),
+    username: user.username,
+  };
 }
 
 export async function ensureUsersSchemaReady() {
@@ -207,7 +225,12 @@ export async function registerUser(input: RegisterUserInput): Promise<AuthUser> 
       ]
     );
 
-    return result.rows[0];
+    const user = result.rows[0];
+
+    return {
+      id: parseUserId(user.id, user.username),
+      username: user.username,
+    };
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "23505") {
       if ("constraint" in error && error.constraint === "app_users_email_unique_idx") {
@@ -251,7 +274,7 @@ export async function verifyUserCredential(username: string, password: string): 
   }
 
   return {
-    id: existingUser.id,
+    id: parseUserId(existingUser.id, existingUser.username),
     username: existingUser.username,
   };
 }

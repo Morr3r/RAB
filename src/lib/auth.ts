@@ -11,6 +11,7 @@ const PBKDF2_ITERATIONS = 210_000;
 const PBKDF2_KEY_LENGTH = 64;
 const PBKDF2_DIGEST = "sha512";
 const LOGIN_USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+const REGISTER_USERNAME_PATTERN = /^[A-Za-z0-9]+$/;
 
 type LoginPayload = {
   username?: string;
@@ -66,6 +67,38 @@ export function validateLoginPayload(payload: LoginPayload) {
     fieldErrors.username = `Username harus ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} karakter.`;
   } else if (!LOGIN_USERNAME_PATTERN.test(username)) {
     fieldErrors.username = "Username hanya boleh huruf, angka, titik, garis bawah, atau strip.";
+  }
+
+  if (!password) {
+    fieldErrors.password = "Password wajib diisi.";
+  } else if (password.length < PASSWORD_MIN_LENGTH) {
+    fieldErrors.password = `Password minimal ${PASSWORD_MIN_LENGTH} karakter.`;
+  }
+
+  return {
+    username,
+    password,
+    fieldErrors,
+    isValid: Object.keys(fieldErrors).length === 0,
+  };
+}
+
+export function validateRegisterPayload(payload: LoginPayload) {
+  const usernameRaw = typeof payload.username === "string" ? payload.username : "";
+  const username = normalizeUsername(usernameRaw);
+  const trimmedUsername = usernameRaw.trim();
+  const password = typeof payload.password === "string" ? payload.password.trim() : "";
+  const fieldErrors: LoginFieldErrors = {};
+
+  if (!trimmedUsername) {
+    fieldErrors.username = "Username wajib diisi.";
+  } else if (
+    trimmedUsername.length < USERNAME_MIN_LENGTH ||
+    trimmedUsername.length > USERNAME_MAX_LENGTH
+  ) {
+    fieldErrors.username = `Username harus ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} karakter.`;
+  } else if (!REGISTER_USERNAME_PATTERN.test(usernameRaw)) {
+    fieldErrors.username = "Username hanya boleh huruf dan angka tanpa spasi atau simbol.";
   }
 
   if (!password) {

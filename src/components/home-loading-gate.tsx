@@ -62,6 +62,7 @@ const SPLASH_DURATION_MS = 3600;
 const EXIT_ANIMATION_MS = 620;
 
 const LOGIN_USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+const REGISTER_USERNAME_PATTERN = /^[A-Za-z0-9]+$/;
 const LOGIN_USERNAME_MIN_LENGTH = 3;
 const LOGIN_USERNAME_MAX_LENGTH = 32;
 const LOGIN_PASSWORD_MIN_LENGTH = 8;
@@ -93,6 +94,27 @@ function validateConfirmPasswordField(
 
   if (passwordRaw.trim() !== confirmPassword) {
     return "Konfirmasi password tidak sama.";
+  }
+
+  return undefined;
+}
+
+function validateRegisterUsernameField(usernameRaw: string): string | undefined {
+  const trimmedUsername = usernameRaw.trim();
+
+  if (!trimmedUsername) {
+    return "Username wajib diisi.";
+  }
+
+  if (
+    trimmedUsername.length < LOGIN_USERNAME_MIN_LENGTH ||
+    trimmedUsername.length > LOGIN_USERNAME_MAX_LENGTH
+  ) {
+    return `Username harus ${LOGIN_USERNAME_MIN_LENGTH}-${LOGIN_USERNAME_MAX_LENGTH} karakter.`;
+  }
+
+  if (!REGISTER_USERNAME_PATTERN.test(usernameRaw)) {
+    return "Username hanya boleh huruf dan angka tanpa spasi atau simbol.";
   }
 
   return undefined;
@@ -142,12 +164,21 @@ function validateRegisterFields(
   confirmPasswordRaw: string,
   profilePayload: RegistrationProfilePayload
 ): AuthFieldErrors {
-  const loginFieldErrors = validateLoginFields(usernameRaw, passwordRaw);
   const profileValidation = validateRegistrationProfile(profilePayload);
   const fieldErrors: AuthFieldErrors = {
-    ...loginFieldErrors,
     ...profileValidation.fieldErrors,
   };
+
+  const usernameError = validateRegisterUsernameField(usernameRaw);
+  if (usernameError) {
+    fieldErrors.username = usernameError;
+  }
+
+  const passwordError = validatePasswordField(passwordRaw);
+  if (passwordError) {
+    fieldErrors.password = passwordError;
+  }
+
   const confirmPasswordError = validateConfirmPasswordField(passwordRaw, confirmPasswordRaw);
   if (confirmPasswordError) {
     fieldErrors.confirmPassword = confirmPasswordError;
@@ -230,6 +261,7 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isCountryPickerOpen, setIsCountryPickerOpen] = useState(false);
+  const [hasTypedUsername, setHasTypedUsername] = useState(false);
   const [hasTypedPassword, setHasTypedPassword] = useState(false);
   const [hasTypedConfirmPassword, setHasTypedConfirmPassword] = useState(false);
   const loaderContainerRef = useRef<HTMLDivElement | null>(null);
@@ -293,6 +325,7 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
       setRegisterForm(DEFAULT_REGISTRATION_FORM);
       setIsPasswordVisible(false);
       setIsCountryPickerOpen(false);
+      setHasTypedUsername(false);
       setHasTypedPassword(false);
       setHasTypedConfirmPassword(false);
       setLoginErrors({});
@@ -559,6 +592,7 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
       setLoginPassword("");
       setRegisterConfirmPassword("");
       setRegisterForm(DEFAULT_REGISTRATION_FORM);
+      setHasTypedUsername(false);
       setHasTypedPassword(false);
       setHasTypedConfirmPassword(false);
       setIsCountryPickerOpen(false);
@@ -623,6 +657,7 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
     setIsCountryPickerOpen(false);
     setLoginErrors({});
     setLoginFeedback(null);
+    setHasTypedUsername(false);
     setHasTypedPassword(false);
     setHasTypedConfirmPassword(false);
 
@@ -741,15 +776,54 @@ export default function HomeLoadingGate({ children }: HomeLoadingGateProps) {
                       value={loginUsername}
                       minLength={LOGIN_USERNAME_MIN_LENGTH}
                       maxLength={LOGIN_USERNAME_MAX_LENGTH}
-                      pattern="[A-Za-z0-9._-]+"
-                      title="Gunakan huruf, angka, titik, garis bawah, atau strip."
+                      pattern={isRegisterMode ? "[A-Za-z0-9]+" : "[A-Za-z0-9._-]+"}
+                      title={
+                        isRegisterMode
+                          ? "Gunakan huruf dan angka tanpa spasi atau simbol."
+                          : "Gunakan huruf, angka, titik, garis bawah, atau strip."
+                      }
                       aria-invalid={Boolean(loginErrors.username)}
                       aria-describedby={loginErrors.username ? "home-loader-username-error" : undefined}
                       onChange={(event) => {
-                        setLoginUsername(event.target.value);
-                        setLoginErrors((current) =>
-                          current.username ? { ...current, username: undefined } : current
-                        );
+                        const nextUsername = event.target.value;
+                        setLoginUsername(nextUsername);
+
+                        if (!isRegisterMode) {
+                          setLoginErrors((current) =>
+                            current.username ? { ...current, username: undefined } : current
+                          );
+                          return;
+                        }
+
+                        setHasTypedUsername(true);
+                        setLoginErrors((current) => {
+                          const shouldValidateUsernameLive =
+                            hasTypedUsername ||
+                            nextUsername.length > 0 ||
+                            loginUsername.length > 0 ||
+                            Boolean(current.username);
+
+                          if (!shouldValidateUsernameLive) {
+                            if (!current.username) {
+                              return current;
+                            }
+
+                            return {
+                              ...current,
+                              username: undefined,
+                            };
+                          }
+
+                          const usernameError = validateRegisterUsernameField(nextUsername);
+                          if (usernameError === current.username) {
+                            return current;
+                          }
+
+                          return {
+                            ...current,
+                            username: usernameError,
+                          };
+                        });
                       }}
                       required
                     />

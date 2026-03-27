@@ -4,7 +4,7 @@ import {
   VIEW_COOKIE_NAME,
   buildAdminToken,
   getAdminCookieOptions,
-  validateLoginPayload,
+  validateRegisterPayload,
 } from "@/lib/auth";
 import { readExpenseData } from "@/lib/expenses";
 import { validateRegistrationProfile } from "@/lib/registration-validation";
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     payload = {};
   }
 
-  const validated = validateLoginPayload(payload);
+  const validated = validateRegisterPayload(payload);
   const profileValidation = validateRegistrationProfile(payload);
   const fieldErrors: RegisterFieldErrors = {
     ...validated.fieldErrors,

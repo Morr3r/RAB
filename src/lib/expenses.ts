@@ -38,6 +38,7 @@ export type ExpenseChangeContext = {
 type ExpenseRow = {
   event_name: string;
   reference_total: number;
+  reference_total_encrypted?: unknown;
   updated_at: Date | string;
   items: unknown;
 };
@@ -52,6 +53,16 @@ type ExpenseHistoryRow = {
   details: unknown;
 };
 
+type ExpenseDataItemsRow = {
+  user_id: number;
+  items: unknown;
+};
+
+type ExpenseHistoryDetailsRow = {
+  id: number;
+  details: unknown;
+};
+
 type SanitizableExpensePayload = Omit<Partial<ExpenseData>, "items"> & {
   items?: Partial<ExpenseItem>[];
 };
@@ -61,10 +72,10 @@ type DatabaseClient = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 type NewExpenseHistoryEntry = Omit<ExpenseHistoryEntry, "id" | "changedAt">;
 
 const MAX_HISTORY_DETAILS = 12;
-const HISTORY_ENCRYPTION_PREFIX = "enc:v1";
-const HISTORY_ENCRYPTION_ALGORITHM = "aes-256-gcm";
-const HISTORY_ENCRYPTION_IV_BYTES = 12;
-const HISTORY_ENCRYPTION_AUTH_TAG_BYTES = 16;
+const ENCRYPTION_PREFIX = "enc:v1";
+const ENCRYPTION_ALGORITHM = "aes-256-gcm";
+const ENCRYPTION_IV_BYTES = 12;
+const ENCRYPTION_AUTH_TAG_BYTES = 16;
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -95,80 +106,117 @@ function formatRupiah(value: number) {
   return idrFormatter.format(value);
 }
 
-function getHistoryEncryptionSecret() {
-  const explicitSecret = process.env.EXPENSE_HISTORY_ENCRYPTION_KEY?.trim();
+function getExpenseEncryptionSecret() {
+  const explicitSecret =
+    process.env.EXPENSE_ENCRYPTION_KEY?.trim() ??
+    process.env.EXPENSE_HISTORY_ENCRYPTION_KEY?.trim();
   if (explicitSecret) {
     return explicitSecret;
   }
 
   const authSecret = process.env.AUTH_SECRET?.trim();
-  if (authSecret && authSecret !== "engagement-local-secret") {
+  if (authSecret) {
     return authSecret;
   }
 
-  return null;
+  return "engagement-local-secret";
 }
 
-function getHistoryEncryptionKey() {
-  const secret = getHistoryEncryptionSecret();
-  if (!secret) {
-    return null;
-  }
-
+function getExpenseEncryptionKey() {
+  const secret = getExpenseEncryptionSecret();
   return crypto.createHash("sha256").update(secret, "utf8").digest();
 }
 
-function encryptHistoryDetail(detail: string) {
-  const key = getHistoryEncryptionKey();
-  if (!key) {
-    return detail;
-  }
-
-  const iv = crypto.randomBytes(HISTORY_ENCRYPTION_IV_BYTES);
-  const cipher = crypto.createCipheriv(HISTORY_ENCRYPTION_ALGORITHM, key, iv);
-  const ciphertext = Buffer.concat([cipher.update(detail, "utf8"), cipher.final()]);
+function encryptTextValue(value: string) {
+  const key = getExpenseEncryptionKey();
+  const iv = crypto.randomBytes(ENCRYPTION_IV_BYTES);
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
   return [
-    HISTORY_ENCRYPTION_PREFIX,
+    ENCRYPTION_PREFIX,
     iv.toString("base64url"),
     authTag.toString("base64url"),
     ciphertext.toString("base64url"),
   ].join(".");
 }
 
-function decryptHistoryDetail(detail: string) {
-  const prefix = `${HISTORY_ENCRYPTION_PREFIX}.`;
-  if (!detail.startsWith(prefix)) {
-    return detail;
+function isEncryptedValue(value: string) {
+  const prefix = `${ENCRYPTION_PREFIX}.`;
+  if (!value.startsWith(prefix)) {
+    return false;
   }
 
-  const tokenParts = detail.split(".");
-  if (tokenParts.length !== 4 || tokenParts[0] !== HISTORY_ENCRYPTION_PREFIX) {
-    return detail;
+  const tokenParts = value.split(".");
+  return tokenParts.length === 4 && tokenParts[0] === ENCRYPTION_PREFIX;
+}
+
+function decryptTextValue(value: string) {
+  if (!isEncryptedValue(value)) {
+    return value;
   }
 
-  const key = getHistoryEncryptionKey();
-  if (!key) {
-    return detail;
-  }
+  const tokenParts = value.split(".");
+  const key = getExpenseEncryptionKey();
 
   try {
     const iv = Buffer.from(tokenParts[1], "base64url");
     const authTag = Buffer.from(tokenParts[2], "base64url");
     const ciphertext = Buffer.from(tokenParts[3], "base64url");
 
-    if (iv.length !== HISTORY_ENCRYPTION_IV_BYTES || authTag.length !== HISTORY_ENCRYPTION_AUTH_TAG_BYTES) {
-      return detail;
+    if (iv.length !== ENCRYPTION_IV_BYTES || authTag.length !== ENCRYPTION_AUTH_TAG_BYTES) {
+      return value;
     }
 
-    const decipher = crypto.createDecipheriv(HISTORY_ENCRYPTION_ALGORITHM, key, iv);
+    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
 
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
   } catch {
-    return detail;
+    return value;
   }
+}
+
+function encryptHistoryDetail(detail: string) {
+  return encryptTextValue(detail);
+}
+
+function decryptHistoryDetail(detail: string) {
+  return decryptTextValue(detail);
+}
+
+function decryptUnitCost(value: unknown) {
+  if (typeof value === "number") {
+    return toPositiveInteger(value);
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const rawValue = value.trim();
+  if (rawValue.length === 0) {
+    return 0;
+  }
+
+  const decrypted = decryptTextValue(rawValue);
+  return toPositiveInteger(decrypted);
+}
+
+function decryptReferenceTotal(
+  encryptedValue: unknown,
+  fallbackValue: unknown
+) {
+  if (typeof encryptedValue === "string" && encryptedValue.trim().length > 0) {
+    const decrypted = decryptTextValue(encryptedValue.trim());
+    const parsed = toPositiveInteger(decrypted, Number.NaN);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return toPositiveInteger(fallbackValue);
 }
 
 function sanitizeItem(item: Partial<ExpenseItem> | undefined, index: number): ExpenseItem {
@@ -188,23 +236,43 @@ function sanitizeItem(item: Partial<ExpenseItem> | undefined, index: number): Ex
   };
 }
 
-function parseDatabaseItems(rawItems: unknown): Partial<ExpenseItem>[] | undefined {
-  if (Array.isArray(rawItems)) {
-    return rawItems as Partial<ExpenseItem>[];
+function parseUnknownArray(rawValue: unknown) {
+  if (Array.isArray(rawValue)) {
+    return rawValue;
   }
 
-  if (typeof rawItems === "string") {
+  if (typeof rawValue === "string") {
     try {
-      const parsed = JSON.parse(rawItems) as unknown;
+      const parsed = JSON.parse(rawValue) as unknown;
       if (Array.isArray(parsed)) {
-        return parsed as Partial<ExpenseItem>[];
+        return parsed;
       }
     } catch {
-      return undefined;
+      return null;
     }
   }
 
-  return undefined;
+  return null;
+}
+
+function parseDatabaseItems(rawItems: unknown): Partial<ExpenseItem>[] | undefined {
+  const parsedItems = parseUnknownArray(rawItems);
+  if (!parsedItems) {
+    return undefined;
+  }
+
+  return parsedItems.map((rawItem) => {
+    if (!rawItem || typeof rawItem !== "object") {
+      return {};
+    }
+
+    const item = rawItem as Record<string, unknown>;
+
+    return {
+      ...item,
+      unitCost: decryptUnitCost(item.unitCost),
+    } as Partial<ExpenseItem>;
+  });
 }
 
 function parseHistoryDetails(rawDetails: unknown) {
@@ -230,6 +298,47 @@ function parseHistoryDetails(rawDetails: unknown) {
   }
 
   return [];
+}
+
+function serializeItemsForDatabase(items: ExpenseItem[]) {
+  return items.map((item) => ({
+    ...item,
+    unitCost: encryptTextValue(String(toPositiveInteger(item.unitCost))),
+  }));
+}
+
+function parseRawHistoryDetails(rawDetails: unknown) {
+  const parsedDetails = parseUnknownArray(rawDetails);
+  if (!parsedDetails) {
+    return [];
+  }
+
+  return parsedDetails
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+}
+
+function encryptHistoryDetailsForStorage(details: string[]) {
+  return details.map((detail) => (isEncryptedValue(detail) ? detail : encryptHistoryDetail(detail)));
+}
+
+function encryptRawItemUnitCostForStorage(rawItem: unknown) {
+  if (!rawItem || typeof rawItem !== "object") {
+    return rawItem;
+  }
+
+  const item = rawItem as Record<string, unknown>;
+  const unitCostValue = item.unitCost;
+
+  if (typeof unitCostValue === "string" && isEncryptedValue(unitCostValue)) {
+    return item;
+  }
+
+  return {
+    ...item,
+    unitCost: encryptTextValue(String(decryptUnitCost(unitCostValue))),
+  };
 }
 
 function sanitizeExpenseData(payload: SanitizableExpensePayload | undefined): ExpenseData {
@@ -261,7 +370,7 @@ function mapRowToExpenseData(row: ExpenseRow) {
 
   return sanitizeExpenseData({
     eventName: row.event_name,
-    referenceTotal: row.reference_total,
+    referenceTotal: decryptReferenceTotal(row.reference_total_encrypted, row.reference_total),
     updatedAt,
     items: parseDatabaseItems(row.items),
   });
@@ -439,6 +548,111 @@ function detectExpenseChanges(
   };
 }
 
+async function migrateExpenseDataItemsEncryption(client: DatabaseClient) {
+  const result = await client.query<ExpenseDataItemsRow>(
+    `
+      SELECT user_id, items
+      FROM user_expense_data
+    `
+  );
+
+  for (const row of result.rows) {
+    const parsedItems = parseUnknownArray(row.items);
+    if (!parsedItems) {
+      continue;
+    }
+
+    const encryptedItems = parsedItems.map((rawItem) => encryptRawItemUnitCostForStorage(rawItem));
+    const hasChanges = JSON.stringify(parsedItems) !== JSON.stringify(encryptedItems);
+
+    if (!hasChanges) {
+      continue;
+    }
+
+    await client.query(
+      `
+        UPDATE user_expense_data
+        SET items = $2::jsonb
+        WHERE user_id = $1
+      `,
+      [row.user_id, JSON.stringify(encryptedItems)]
+    );
+  }
+}
+
+async function migrateExpenseReferenceTotalEncryption(client: DatabaseClient) {
+  const result = await client.query<{
+    user_id: number;
+    reference_total: number;
+    reference_total_encrypted: unknown;
+  }>(
+    `
+      SELECT user_id, reference_total, reference_total_encrypted
+      FROM user_expense_data
+    `
+  );
+
+  for (const row of result.rows) {
+    const currentEncrypted =
+      typeof row.reference_total_encrypted === "string"
+        ? row.reference_total_encrypted.trim()
+        : "";
+    const hasEncryptedReferenceTotal = currentEncrypted.length > 0 && isEncryptedValue(currentEncrypted);
+
+    if (hasEncryptedReferenceTotal && row.reference_total === 0) {
+      continue;
+    }
+
+    const normalizedReferenceTotal = decryptReferenceTotal(
+      row.reference_total_encrypted,
+      row.reference_total
+    );
+    const encryptedReferenceTotal = encryptTextValue(String(normalizedReferenceTotal));
+
+    await client.query(
+      `
+        UPDATE user_expense_data
+        SET reference_total = 0,
+            reference_total_encrypted = $2
+        WHERE user_id = $1
+      `,
+      [row.user_id, encryptedReferenceTotal]
+    );
+  }
+}
+
+async function migrateExpenseHistoryDetailsEncryption(client: DatabaseClient) {
+  const result = await client.query<ExpenseHistoryDetailsRow>(
+    `
+      SELECT id, details
+      FROM user_expense_history
+    `
+  );
+
+  for (const row of result.rows) {
+    const parsedDetails = parseRawHistoryDetails(row.details);
+    if (parsedDetails.length === 0) {
+      continue;
+    }
+
+    const encryptedDetails = encryptHistoryDetailsForStorage(parsedDetails);
+    const hasChanges = JSON.stringify(parsedDetails) !== JSON.stringify(encryptedDetails);
+
+    if (!hasChanges) {
+      continue;
+    }
+
+    await client.query(
+      `
+        UPDATE user_expense_history
+        SET details = $2::jsonb
+        WHERE id = $1
+      `,
+      [row.id, JSON.stringify(encryptedDetails)]
+    );
+  }
+}
+
 async function ensureExpenseSchema(client: DatabaseClient) {
   if (schemaEnsured) {
     return;
@@ -451,9 +665,15 @@ async function ensureExpenseSchema(client: DatabaseClient) {
       user_id BIGINT PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
       event_name TEXT NOT NULL,
       reference_total INTEGER NOT NULL CHECK (reference_total >= 0),
+      reference_total_encrypted TEXT,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       items JSONB NOT NULL DEFAULT '[]'::jsonb
     );
+  `);
+
+  await client.query(`
+    ALTER TABLE user_expense_data
+    ADD COLUMN IF NOT EXISTS reference_total_encrypted TEXT;
   `);
 
   await client.query(`
@@ -474,21 +694,36 @@ async function ensureExpenseSchema(client: DatabaseClient) {
     ON user_expense_history (user_id, changed_at DESC, id DESC);
   `);
 
+  await migrateExpenseReferenceTotalEncryption(client);
+  await migrateExpenseDataItemsEncryption(client);
+  await migrateExpenseHistoryDetailsEncryption(client);
+
   schemaEnsured = true;
 }
 
 async function upsertExpenseData(client: DatabaseClient, userId: number, data: ExpenseData) {
+  const encryptedItems = serializeItemsForDatabase(data.items);
+  const encryptedReferenceTotal = encryptTextValue(String(toPositiveInteger(data.referenceTotal)));
+
   await client.query(
     `
-      INSERT INTO user_expense_data (user_id, event_name, reference_total, updated_at, items)
-      VALUES ($1, $2, $3, $4, $5::jsonb)
+      INSERT INTO user_expense_data (
+        user_id,
+        event_name,
+        reference_total,
+        reference_total_encrypted,
+        updated_at,
+        items
+      )
+      VALUES ($1, $2, 0, $3, $4, $5::jsonb)
       ON CONFLICT (user_id) DO UPDATE
       SET event_name = EXCLUDED.event_name,
           reference_total = EXCLUDED.reference_total,
+          reference_total_encrypted = EXCLUDED.reference_total_encrypted,
           updated_at = EXCLUDED.updated_at,
           items = EXCLUDED.items
     `,
-    [userId, data.eventName, data.referenceTotal, data.updatedAt, JSON.stringify(data.items)]
+    [userId, data.eventName, encryptedReferenceTotal, data.updatedAt, JSON.stringify(encryptedItems)]
   );
 }
 
@@ -497,7 +732,7 @@ async function insertExpenseHistory(
   userId: number,
   entry: NewExpenseHistoryEntry
 ) {
-  const encryptedDetails = entry.details.map((detail) => encryptHistoryDetail(detail));
+  const encryptedDetails = encryptHistoryDetailsForStorage(entry.details);
 
   await client.query(
     `
@@ -511,7 +746,7 @@ async function insertExpenseHistory(
 async function getCurrentExpenseData(client: DatabaseClient, userId: number) {
   const result = await client.query<ExpenseRow>(
     `
-      SELECT event_name, reference_total, updated_at, items
+      SELECT event_name, reference_total, reference_total_encrypted, updated_at, items
       FROM user_expense_data
       WHERE user_id = $1
       LIMIT 1
